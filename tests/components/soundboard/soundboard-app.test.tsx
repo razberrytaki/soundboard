@@ -741,6 +741,163 @@ describe("SoundboardApp", () => {
     expect(repository.savePad).toHaveBeenCalled();
   });
 
+  it("trims pad names before saving", async () => {
+    const user = userEvent.setup();
+    const boards: SoundboardBoard[] = [
+      {
+        id: "board-1",
+        name: "Stream",
+        order: 1,
+        createdAt: "2026-03-24T00:00:00.000Z",
+        updatedAt: "2026-03-24T00:00:00.000Z",
+      },
+    ];
+    const repository = createRepositoryFixture({
+      boards,
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await user.type(
+      await screen.findByRole("textbox", { name: /^name$/i }),
+      "  Laugh  ",
+    );
+    await user.upload(
+      screen.getByLabelText(/audio file/i),
+      new File(["laugh"], "laugh.mp3", { type: "audio/mpeg" }),
+    );
+    await user.click(screen.getByRole("button", { name: /save pad/i }));
+
+    expect(repository.savePad).toHaveBeenCalledWith(
+      expect.objectContaining({
+        label: "Laugh",
+      }),
+    );
+    expect(await screen.findByRole("button", { name: "Laugh" })).toBeInTheDocument();
+  });
+
+  it("shows an inline error for whitespace-only pad names and blocks saving", async () => {
+    const user = userEvent.setup();
+    const boards: SoundboardBoard[] = [
+      {
+        id: "board-1",
+        name: "Stream",
+        order: 1,
+        createdAt: "2026-03-24T00:00:00.000Z",
+        updatedAt: "2026-03-24T00:00:00.000Z",
+      },
+    ];
+    const repository = createRepositoryFixture({
+      boards,
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    const nameInput = await screen.findByRole("textbox", { name: /^name$/i });
+
+    await user.type(nameInput, "   ");
+    await user.tab();
+
+    expect(await screen.findByText(/enter a pad name/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /save pad/i })).toBeDisabled();
+  });
+
+  it("rejects non-audio files with an inline error", async () => {
+    const user = userEvent.setup({ applyAccept: false });
+    const boards: SoundboardBoard[] = [
+      {
+        id: "board-1",
+        name: "Stream",
+        order: 1,
+        createdAt: "2026-03-24T00:00:00.000Z",
+        updatedAt: "2026-03-24T00:00:00.000Z",
+      },
+    ];
+    const repository = createRepositoryFixture({
+      boards,
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await user.type(
+      await screen.findByRole("textbox", { name: /^name$/i }),
+      "Laugh",
+    );
+    await user.upload(
+      screen.getByLabelText(/audio file/i),
+      new File(["note"], "note.txt", { type: "text/plain" }),
+    );
+
+    expect(await screen.findByText(/choose an audio file/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /save pad/i })).toBeDisabled();
+    expect(repository.savePad).not.toHaveBeenCalled();
+  });
+
+  it("limits the pad name input length to 12 characters", async () => {
+    const boards: SoundboardBoard[] = [
+      {
+        id: "board-1",
+        name: "Stream",
+        order: 1,
+        createdAt: "2026-03-24T00:00:00.000Z",
+        updatedAt: "2026-03-24T00:00:00.000Z",
+      },
+    ];
+    const repository = createRepositoryFixture({
+      boards,
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    expect(
+      await screen.findByRole("textbox", { name: /^name$/i }),
+    ).toHaveAttribute("maxlength", "12");
+  });
+
   it("keeps the inspector open and uses new pad as the create action label", async () => {
     const boards: SoundboardBoard[] = [
       {

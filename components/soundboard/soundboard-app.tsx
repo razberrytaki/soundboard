@@ -14,12 +14,17 @@ import type {
   SoundboardRepository,
   SoundboardSettings,
 } from "@/lib/soundboard/types";
+import {
+  BOARD_NAME_MAX_LENGTH,
+  limitBoardNameInput,
+  normalizeBoardName,
+  normalizePadName,
+} from "@/lib/soundboard/validation";
 
 const DISCARD_CHANGES_MESSAGE =
   "Discard unsaved changes?\nYour current pad edits will be lost.";
 const DELETE_BOARD_MESSAGE =
   "Delete this board?\nThis board contains saved sound pads. Deleting it will remove them from this browser.";
-const BOARD_NAME_LIMIT = 20;
 
 type SoundboardPlayer = {
   play(blob: Blob): Promise<void>;
@@ -32,10 +37,6 @@ type SoundboardAppProps = {
   repository?: SoundboardRepository;
   player?: SoundboardPlayer;
 };
-
-function clampBoardNameLength(value: string) {
-  return Array.from(value).slice(0, BOARD_NAME_LIMIT).join("");
-}
 
 function getNextBoardName(records: SoundboardBoard[]) {
   return `Board ${records.length + 1}`;
@@ -128,12 +129,6 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     setEditorState(null);
   };
 
-  const normalizeBoardName = (value: string, fallbackName: string) => {
-    const trimmedValue = clampBoardNameLength(value.trim());
-
-    return trimmedValue.length > 0 ? trimmedValue : fallbackName;
-  };
-
   const requestEditorStateChange = (
     nextState: { mode: "create" } | { mode: "edit"; padId: string },
   ) => {
@@ -220,7 +215,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     await repositoryInstance.savePad({
       id: value.id,
       boardId: activeBoardId,
-      label: value.label.trim(),
+      label: normalizePadName(value.label),
       color: value.color,
       order: nextOrder,
       audioBlob: value.audioBlob,
@@ -300,7 +295,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
 
       return {
         ...current,
-        draftName: clampBoardNameLength(value),
+        draftName: limitBoardNameInput(value),
       };
     });
   };
@@ -451,7 +446,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
                       aria-label="Board name"
                       autoFocus
                       className="w-full max-w-xl rounded-2xl border border-[var(--color-line)] bg-white/90 px-4 py-3 text-2xl font-semibold tracking-[-0.05em] outline-none transition-colors focus:border-[var(--color-accent)] md:text-4xl"
-                      maxLength={BOARD_NAME_LIMIT}
+                      maxLength={BOARD_NAME_MAX_LENGTH}
                       onChange={(event) =>
                         handleBoardEditingNameChange(event.target.value)
                       }

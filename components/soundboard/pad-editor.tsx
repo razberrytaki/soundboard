@@ -1,8 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import type { SoundboardPad } from "@/lib/soundboard/types";
+import {
+  PAD_NAME_MAX_LENGTH,
+  limitPadNameInput,
+  normalizePadName,
+  validateAudioFile,
+  validatePadName,
+} from "@/lib/soundboard/validation";
 
 type PadEditorSubmitValue = {
   id?: string;
@@ -38,6 +45,8 @@ export function PadEditor({
   onMoveUp,
   onSave,
 }: PadEditorProps) {
+  const nameErrorId = useId();
+  const audioErrorId = useId();
   const [label, setLabel] = useState(() => (mode === "edit" && pad ? pad.label : ""));
   const [color, setColor] = useState(() =>
     mode === "edit" && pad ? pad.color : DEFAULT_COLOR,
@@ -51,12 +60,17 @@ export function PadEditor({
   const [mimeType, setMimeType] = useState(() =>
     mode === "edit" && pad ? pad.mimeType : "",
   );
+  const [nameTouched, setNameTouched] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
 
   const initialLabel = mode === "edit" && pad ? pad.label : "";
   const initialColor = mode === "edit" && pad ? pad.color : DEFAULT_COLOR;
   const initialAudioBlob = mode === "edit" && pad ? pad.audioBlob : null;
   const initialAudioName = mode === "edit" && pad ? pad.audioName : "";
   const initialMimeType = mode === "edit" && pad ? pad.mimeType : "";
+  const nameError = nameTouched ? validatePadName(label) : null;
+  const normalizedLabel = normalizePadName(label);
+  const canSave = !validatePadName(label) && !audioError && Boolean(audioBlob);
 
   useEffect(() => {
     const isDirty =
@@ -82,13 +96,19 @@ export function PadEditor({
   ]);
 
   const handleSave = async () => {
-    if (!audioBlob) {
+    if (!audioBlob || audioError) {
+      setNameTouched(true);
+      return;
+    }
+
+    if (validatePadName(label)) {
+      setNameTouched(true);
       return;
     }
 
     await onSave({
       id: mode === "edit" ? pad?.id : undefined,
-      label,
+      label: normalizedLabel,
       color,
       audioBlob,
       audioName,
@@ -112,39 +132,85 @@ export function PadEditor({
           </p>
         </div>
 
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-[var(--color-ink)]">Name</span>
-          <input
-            className="w-full rounded-2xl border border-[var(--color-line)] bg-white/80 px-4 py-3 text-sm outline-none transition-colors focus:border-[var(--color-accent)]"
-            onChange={(event) => setLabel(event.target.value)}
-            value={label}
-          />
-        </label>
+        <div className="space-y-2">
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-[var(--color-ink)]">Name</span>
+            <input
+              aria-describedby={nameError ? nameErrorId : undefined}
+              aria-invalid={nameError ? "true" : "false"}
+              className="w-full rounded-2xl border border-[var(--color-line)] bg-white/80 px-4 py-3 text-sm outline-none transition-colors focus:border-[var(--color-accent)]"
+              maxLength={PAD_NAME_MAX_LENGTH}
+              onBlur={() => setNameTouched(true)}
+              onChange={(event) => {
+                setNameTouched(true);
+                setLabel(limitPadNameInput(event.target.value));
+              }}
+              value={label}
+            />
+          </label>
+          {nameError ? (
+            <p
+              className="text-xs text-[var(--color-accent)]"
+              id={nameErrorId}
+              role="alert"
+            >
+              {nameError}
+            </p>
+          ) : null}
+        </div>
 
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-[var(--color-ink)]">
-            Audio File
-          </span>
-          <input
-            accept="audio/*"
-            className="block w-full rounded-2xl border border-[var(--color-line)] bg-white/80 px-4 py-3 text-sm"
-            onChange={(event) => {
-              const nextFile = event.target.files?.[0];
+        <div className="space-y-2">
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-[var(--color-ink)]">
+              Audio File
+            </span>
+            <input
+              accept="audio/*"
+              aria-describedby={audioError ? audioErrorId : undefined}
+              aria-invalid={audioError ? "true" : "false"}
+              className="block w-full rounded-2xl border border-[var(--color-line)] bg-white/80 px-4 py-3 text-sm"
+              onChange={(event) => {
+                const nextFile = event.target.files?.[0];
 
-              if (!nextFile) {
-                return;
-              }
+                if (!nextFile) {
+                  return;
+                }
 
-              setAudioBlob(nextFile);
-              setAudioName(nextFile.name);
-              setMimeType(nextFile.type);
-            }}
-            type="file"
-          />
+                const nextAudioError = validateAudioFile(nextFile);
+
+                if (nextAudioError) {
+                  setAudioError(nextAudioError);
+
+                  if (mode === "create") {
+                    setAudioBlob(null);
+                    setAudioName("");
+                    setMimeType("");
+                  }
+
+                  return;
+                }
+
+                setAudioError(null);
+                setAudioBlob(nextFile);
+                setAudioName(nextFile.name);
+                setMimeType(nextFile.type);
+              }}
+              type="file"
+            />
+          </label>
           {audioName ? (
             <p className="text-xs text-[var(--color-muted)]">{audioName}</p>
           ) : null}
-        </label>
+          {audioError ? (
+            <p
+              className="text-xs text-[var(--color-accent)]"
+              id={audioErrorId}
+              role="alert"
+            >
+              {audioError}
+            </p>
+          ) : null}
+        </div>
 
         <label className="block space-y-2">
           <span className="text-sm font-medium text-[var(--color-ink)]">Color</span>
@@ -180,7 +246,7 @@ export function PadEditor({
         <div className="space-y-2">
           <button
             className="w-full rounded-full bg-[var(--color-ink)] px-4 py-3 text-sm font-medium text-[var(--color-paper)] transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={!label.trim() || !audioBlob}
+            disabled={!canSave}
             onClick={() => void handleSave()}
             type="button"
           >
