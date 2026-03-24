@@ -5,7 +5,14 @@ const config = [
   ...nextCoreWebVitals,
   ...nextTypescript,
   {
-    ignores: ["coverage/**", "dist/**"],
+    ignores: [
+      ".next/**",
+      ".pnpm-store/**",
+      ".superpowers/**",
+      ".worktrees/**",
+      "coverage/**",
+      "dist/**",
+    ],
   },
 ];
 
