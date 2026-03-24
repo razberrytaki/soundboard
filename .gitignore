@@ -3,6 +3,8 @@ node_modules/
 .pnpm-store/
 .superpowers/
 .worktrees/
+.open-next/
+.wrangler/
 dist/
 out/
 coverage/
