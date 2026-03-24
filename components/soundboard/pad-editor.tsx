@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { SoundboardPad } from "@/lib/soundboard/types";
 
@@ -18,7 +18,7 @@ type PadEditorProps = {
   pad: SoundboardPad | null;
   canMoveUp: boolean;
   canMoveDown: boolean;
-  onClose(): void;
+  onDirtyChange(value: boolean): void;
   onDelete(): void;
   onMoveDown(): void;
   onMoveUp(): void;
@@ -32,7 +32,7 @@ export function PadEditor({
   pad,
   canMoveUp,
   canMoveDown,
-  onClose,
+  onDirtyChange,
   onDelete,
   onMoveDown,
   onMoveUp,
@@ -51,6 +51,35 @@ export function PadEditor({
   const [mimeType, setMimeType] = useState(() =>
     mode === "edit" && pad ? pad.mimeType : "",
   );
+
+  const initialLabel = mode === "edit" && pad ? pad.label : "";
+  const initialColor = mode === "edit" && pad ? pad.color : DEFAULT_COLOR;
+  const initialAudioBlob = mode === "edit" && pad ? pad.audioBlob : null;
+  const initialAudioName = mode === "edit" && pad ? pad.audioName : "";
+  const initialMimeType = mode === "edit" && pad ? pad.mimeType : "";
+
+  useEffect(() => {
+    const isDirty =
+      label !== initialLabel ||
+      color !== initialColor ||
+      audioBlob !== initialAudioBlob ||
+      audioName !== initialAudioName ||
+      mimeType !== initialMimeType;
+
+    onDirtyChange(isDirty);
+  }, [
+    audioBlob,
+    audioName,
+    color,
+    initialAudioBlob,
+    initialAudioName,
+    initialColor,
+    initialLabel,
+    initialMimeType,
+    label,
+    mimeType,
+    onDirtyChange,
+  ]);
 
   const handleSave = async () => {
     if (!audioBlob) {
@@ -158,13 +187,6 @@ export function PadEditor({
             Save Pad
           </button>
           <div className="grid grid-cols-2 gap-2">
-            <button
-              className="rounded-full border border-[var(--color-line)] px-4 py-3 text-sm text-[var(--color-ink)] transition-colors hover:bg-white/70"
-              onClick={onClose}
-              type="button"
-            >
-              Close
-            </button>
             {mode === "edit" ? (
               <button
                 className="rounded-full border border-[rgba(217,91,67,0.3)] bg-[rgba(217,91,67,0.12)] px-4 py-3 text-sm text-[var(--color-ink)] transition-colors hover:bg-[rgba(217,91,67,0.18)]"
@@ -174,7 +196,7 @@ export function PadEditor({
                 Delete Pad
               </button>
             ) : (
-              <div />
+              <div className="col-span-2" />
             )}
           </div>
         </div>

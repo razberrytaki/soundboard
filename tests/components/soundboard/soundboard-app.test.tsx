@@ -369,7 +369,7 @@ describe("SoundboardApp", () => {
 
     render(<SoundboardApp repository={repository} player={player} />);
 
-    await user.click(await screen.findByRole("button", { name: /add sound/i }));
+    await user.click(await screen.findByRole("button", { name: /new pad/i }));
     await user.type(screen.getByLabelText(/name/i), "Laugh");
     await user.upload(
       screen.getByLabelText(/audio file/i),
@@ -379,6 +379,123 @@ describe("SoundboardApp", () => {
 
     expect(await screen.findByRole("button", { name: "Laugh" })).toBeInTheDocument();
     expect(repository.savePad).toHaveBeenCalled();
+  });
+
+  it("keeps the inspector open and uses new pad as the create action label", async () => {
+    const boards: SoundboardBoard[] = [
+      {
+        id: "board-1",
+        name: "Stream",
+        order: 1,
+        createdAt: "2026-03-24T00:00:00.000Z",
+        updatedAt: "2026-03-24T00:00:00.000Z",
+      },
+    ];
+    const repository = createRepositoryFixture({
+      boards,
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    expect(await screen.findByRole("button", { name: /new pad/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /close/i })).not.toBeInTheDocument();
+  });
+
+  it("prompts before discarding a dirty draft when starting a new pad", async () => {
+    const user = userEvent.setup();
+    const boards: SoundboardBoard[] = [
+      {
+        id: "board-1",
+        name: "Stream",
+        order: 1,
+        createdAt: "2026-03-24T00:00:00.000Z",
+        updatedAt: "2026-03-24T00:00:00.000Z",
+      },
+    ];
+    const repository = createRepositoryFixture({
+      boards,
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await user.type(await screen.findByLabelText(/name/i), "Draft pad");
+    await user.click(screen.getByRole("button", { name: /new pad/i }));
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      "Discard unsaved changes?\nYour current pad edits will be lost.",
+    );
+    expect(screen.getByLabelText(/name/i)).toHaveValue("Draft pad");
+
+    confirmSpy.mockRestore();
+  });
+
+  it("prompts before discarding a dirty draft when switching into edit mode", async () => {
+    const user = userEvent.setup();
+    const boards: SoundboardBoard[] = [
+      {
+        id: "board-1",
+        name: "Stream",
+        order: 1,
+        createdAt: "2026-03-24T00:00:00.000Z",
+        updatedAt: "2026-03-24T00:00:00.000Z",
+      },
+    ];
+    const repository = createRepositoryFixture({
+      boards,
+      padsByBoardId: {
+        "board-1": [
+          createPad({ id: "pad-1", boardId: "board-1", label: "Airhorn", order: 1 }),
+          createPad({ id: "pad-2", boardId: "board-1", label: "Clap", order: 2 }),
+        ],
+      },
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await user.type(await screen.findByLabelText(/name/i), "Draft pad");
+    await user.click(screen.getByRole("button", { name: /edit airhorn/i }));
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      "Discard unsaved changes?\nYour current pad edits will be lost.",
+    );
+    expect(screen.getByRole("heading", { name: "Add Sound Pad" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/name/i)).toHaveValue("Draft pad");
+
+    confirmSpy.mockRestore();
   });
 
   it("edits an existing pad", async () => {

@@ -15,6 +15,9 @@ import type {
   SoundboardSettings,
 } from "@/lib/soundboard/types";
 
+const DISCARD_CHANGES_MESSAGE =
+  "Discard unsaved changes?\nYour current pad edits will be lost.";
+
 type SoundboardPlayer = {
   play(blob: Blob): Promise<void>;
   setAllowConcurrentPlayback(value: boolean): void;
@@ -41,6 +44,8 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
   const [editorState, setEditorState] = useState<
     { mode: "create" } | { mode: "edit"; padId: string } | null
   >(null);
+  const [createEditorVersion, setCreateEditorVersion] = useState(0);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -100,8 +105,33 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     ? pads.findIndex((pad) => pad.id === editedPad.id)
     : -1;
 
+  const requestEditorStateChange = (
+    nextState: { mode: "create" } | { mode: "edit"; padId: string },
+  ) => {
+    if (
+      editorState?.mode === "edit" &&
+      nextState.mode === "edit" &&
+      editorState.padId === nextState.padId
+    ) {
+      return;
+    }
+
+    if (hasUnsavedChanges && !window.confirm(DISCARD_CHANGES_MESSAGE)) {
+      return;
+    }
+
+    if (nextState.mode === "create") {
+      setCreateEditorVersion((current) => current + 1);
+    }
+
+    setHasUnsavedChanges(false);
+    setEditorState(nextState);
+  };
+
   const handleBoardSelect = async (boardId: string) => {
     setActiveBoardId(boardId);
+    setCreateEditorVersion((current) => current + 1);
+    setHasUnsavedChanges(false);
     setEditorState(null);
     const nextSettings = await repositoryInstance.updateSettings({
       activeBoardId: boardId,
@@ -125,6 +155,8 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     setSettings(nextSettings);
     setActiveBoardId(nextBoard.id);
     setPads([]);
+    setCreateEditorVersion((current) => current + 1);
+    setHasUnsavedChanges(false);
     setEditorState(null);
   };
 
@@ -164,6 +196,8 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     });
 
     await refreshPads(activeBoardId);
+    setCreateEditorVersion((current) => current + 1);
+    setHasUnsavedChanges(false);
     setEditorState(null);
   };
 
@@ -174,6 +208,8 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
 
     await repositoryInstance.deletePad(editedPad.id);
     await refreshPads(activeBoardId);
+    setCreateEditorVersion((current) => current + 1);
+    setHasUnsavedChanges(false);
     setEditorState(null);
   };
 
@@ -295,17 +331,19 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
               />
               <button
                 className="rounded-full bg-[var(--color-ink)] px-4 py-3 text-sm font-medium text-[var(--color-paper)] transition-transform duration-200 hover:-translate-y-0.5"
-                onClick={() => setEditorState({ mode: "create" })}
+                onClick={() => requestEditorStateChange({ mode: "create" })}
                 type="button"
               >
-                Add Sound
+                New Pad
               </button>
             </div>
           </header>
 
           <div className="grid gap-6 px-5 py-5 md:grid-cols-[minmax(0,1fr)_320px] md:px-8 md:py-7">
             <PadGrid
-              onEdit={(pad) => setEditorState({ mode: "edit", padId: pad.id })}
+              onEdit={(pad) =>
+                requestEditorStateChange({ mode: "edit", padId: pad.id })
+              }
               onPlay={(pad) => void handlePlay(pad)}
               pads={pads}
             />
@@ -313,12 +351,12 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
               key={
                 editorState?.mode === "edit"
                   ? editorState.padId
-                  : `${activeBoardId ?? "none"}-${editorState?.mode ?? "idle"}`
+                  : `${activeBoardId ?? "none"}-${createEditorVersion}`
               }
               canMoveDown={editedPadIndex >= 0 && editedPadIndex < pads.length - 1}
               canMoveUp={editedPadIndex > 0}
               mode={editorState?.mode ?? "create"}
-              onClose={() => setEditorState(null)}
+              onDirtyChange={setHasUnsavedChanges}
               onDelete={() => void handleDeletePad()}
               onMoveDown={() => void movePad(1)}
               onMoveUp={() => void movePad(-1)}
