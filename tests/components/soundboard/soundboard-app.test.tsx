@@ -273,7 +273,9 @@ describe("SoundboardApp", () => {
 
     await user.click(await screen.findByRole("button", { name: /create board/i }));
 
-    expect(await screen.findByRole("heading", { name: "Board 1" })).toBeInTheDocument();
+    expect(await screen.findByRole("textbox", { name: /board name/i })).toHaveValue(
+      "Board 1",
+    );
   });
 
   it("creates another board from the sidebar", async () => {
@@ -341,8 +343,9 @@ describe("SoundboardApp", () => {
 
     await user.click(await screen.findByRole("button", { name: /create board/i }));
 
-    expect(await screen.findByRole("heading", { name: "Board 2" })).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: /board name/i })).toHaveValue("Board 2");
+    expect(await screen.findByRole("textbox", { name: /board name/i })).toHaveValue(
+      "Board 2",
+    );
   });
 
   it("renames an existing board inline from the sidebar", async () => {
@@ -420,6 +423,46 @@ describe("SoundboardApp", () => {
     expect(repository.updateBoard).not.toHaveBeenCalled();
   });
 
+  it("keeps board management actions out of the sidebar", async () => {
+    const boards: SoundboardBoard[] = [
+      {
+        id: "board-1",
+        name: "Stream",
+        order: 1,
+        createdAt: "2026-03-24T00:00:00.000Z",
+        updatedAt: "2026-03-24T00:00:00.000Z",
+      },
+      {
+        id: "board-2",
+        name: "Game",
+        order: 2,
+        createdAt: "2026-03-24T00:00:01.000Z",
+        updatedAt: "2026-03-24T00:00:01.000Z",
+      },
+    ];
+    const repository = createRepositoryFixture({
+      boards,
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    expect(await screen.findByRole("button", { name: /rename stream/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /delete stream/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /rename game/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /delete game/i })).not.toBeInTheDocument();
+  });
+
   it("deletes an empty board without confirmation", async () => {
     const user = userEvent.setup();
     const boards: SoundboardBoard[] = [
@@ -456,6 +499,7 @@ describe("SoundboardApp", () => {
 
     render(<SoundboardApp repository={repository} player={player} />);
 
+    await user.click(await screen.findByRole("button", { name: "Game" }));
     await user.click(await screen.findByRole("button", { name: /delete game/i }));
 
     await waitFor(() => {
@@ -504,6 +548,7 @@ describe("SoundboardApp", () => {
 
     render(<SoundboardApp repository={repository} player={player} />);
 
+    await user.click(await screen.findByRole("button", { name: "Game" }));
     await user.click(await screen.findByRole("button", { name: /delete game/i }));
 
     expect(confirmSpy).toHaveBeenCalledWith(

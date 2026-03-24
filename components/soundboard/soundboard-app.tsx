@@ -112,6 +112,8 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
 
   const activeBoard =
     boards.find((board) => board.id === activeBoardId) ?? boards[0] ?? null;
+  const activeBoardIsEditing =
+    activeBoard !== null && boardEditorState?.boardId === activeBoard.id;
   const editedPad =
     editorState?.mode === "edit"
       ? pads.find((pad) => pad.id === editorState.padId) ?? null
@@ -431,15 +433,8 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
         <BoardSidebar
           activeBoardId={activeBoard?.id ?? null}
           boards={boards}
-          editingBoardId={boardEditorState?.boardId ?? null}
-          editingName={boardEditorState?.draftName ?? ""}
           onCreateBoard={() => void handleCreateBoard()}
-          onDeleteBoard={(boardId) => void handleBoardDelete(boardId)}
-          onEditingNameChange={handleBoardEditingNameChange}
-          onCancelRename={handleBoardRenameCancel}
           onSelectBoard={(boardId) => void handleBoardSelect(boardId)}
-          onStartRename={handleBoardRenameStart}
-          onSubmitRename={(boardId) => void handleBoardRenameSave(boardId)}
         />
 
         <section className="flex min-w-0 flex-col">
@@ -448,14 +443,88 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
               <p className="font-[family-name:var(--font-mono)] text-[0.72rem] uppercase tracking-[0.28em] text-[var(--color-muted)]">
                 Active Board
               </p>
-              <div className="space-y-1">
-                <h1 className="text-4xl font-semibold tracking-[-0.05em]">
-                  {activeBoard?.name}
-                </h1>
-                <p className="max-w-xl text-sm leading-6 text-[var(--color-muted)] md:text-base">
-                  Stored locally in this browser and restored on the next visit.
-                </p>
-              </div>
+              {activeBoardIsEditing ? (
+                <div className="space-y-3">
+                  <label className="block">
+                    <span className="sr-only">Board name</span>
+                    <input
+                      aria-label="Board name"
+                      autoFocus
+                      className="w-full max-w-xl rounded-2xl border border-[var(--color-line)] bg-white/90 px-4 py-3 text-2xl font-semibold tracking-[-0.05em] outline-none transition-colors focus:border-[var(--color-accent)] md:text-4xl"
+                      maxLength={BOARD_NAME_LIMIT}
+                      onChange={(event) =>
+                        handleBoardEditingNameChange(event.target.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (!activeBoard) {
+                          return;
+                        }
+
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          void handleBoardRenameSave(activeBoard.id);
+                        }
+
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          handleBoardRenameCancel();
+                        }
+                      }}
+                      value={boardEditorState?.draftName ?? ""}
+                    />
+                  </label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      className="rounded-full bg-[var(--color-ink)] px-4 py-3 text-sm font-medium text-[var(--color-paper)] transition-transform duration-200 hover:-translate-y-0.5"
+                      onClick={() =>
+                        activeBoard && void handleBoardRenameSave(activeBoard.id)
+                      }
+                      type="button"
+                    >
+                      Save board name
+                    </button>
+                    <button
+                      className="rounded-full border border-[var(--color-line)] px-4 py-3 text-sm font-medium text-[var(--color-muted)] transition-colors duration-200 hover:bg-white/70 hover:text-[var(--color-ink)]"
+                      onClick={handleBoardRenameCancel}
+                      type="button"
+                    >
+                      Cancel rename
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <h1 className="text-4xl font-semibold tracking-[-0.05em]">
+                      {activeBoard?.name}
+                    </h1>
+                    <p className="max-w-xl text-sm leading-6 text-[var(--color-muted)] md:text-base">
+                      Stored locally in this browser and restored on the next
+                      visit.
+                    </p>
+                  </div>
+                  {activeBoard ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        aria-label={`Rename ${activeBoard.name}`}
+                        className="rounded-full border border-[var(--color-line)] px-4 py-3 text-sm font-medium text-[var(--color-ink)] transition-colors duration-200 hover:bg-white/70"
+                        onClick={() => handleBoardRenameStart(activeBoard.id)}
+                        type="button"
+                      >
+                        Rename
+                      </button>
+                      <button
+                        aria-label={`Delete ${activeBoard.name}`}
+                        className="rounded-full border border-[rgba(217,91,67,0.22)] bg-[rgba(217,91,67,0.08)] px-4 py-3 text-sm font-medium text-[var(--color-ink)] transition-colors duration-200 hover:bg-[rgba(217,91,67,0.15)]"
+                        onClick={() => void handleBoardDelete(activeBoard.id)}
+                        type="button"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
