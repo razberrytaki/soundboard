@@ -3,12 +3,14 @@ import type { SoundboardBoard } from "@/lib/soundboard/types";
 type BoardSidebarProps = {
   boards: SoundboardBoard[];
   activeBoardId: string | null;
+  onCreateBoard(): void;
   onSelectBoard(boardId: string): void;
 };
 
 export function BoardSidebar({
   boards,
   activeBoardId,
+  onCreateBoard,
   onSelectBoard,
 }: BoardSidebarProps) {
   return (
@@ -47,6 +49,14 @@ export function BoardSidebar({
           );
         })}
       </div>
+
+      <button
+        className="rounded-full bg-[var(--color-ink)] px-4 py-3 text-sm font-medium text-[var(--color-paper)] transition-transform duration-200 hover:-translate-y-0.5"
+        onClick={onCreateBoard}
+        type="button"
+      >
+        Create Board
+      </button>
     </aside>
   );
 }

@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 
 import { BoardSidebar } from "@/components/soundboard/board-sidebar";
+import { PadEditor } from "@/components/soundboard/pad-editor";
 import { PadGrid } from "@/components/soundboard/pad-grid";
+import { SettingsPanel } from "@/components/soundboard/settings-panel";
 import { createAudioPlayer } from "@/lib/soundboard/audio-player";
 import { createSoundboardDb } from "@/lib/soundboard/db";
 import type {
@@ -36,6 +38,9 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
   const [pads, setPads] = useState<SoundboardPad[]>([]);
   const [settings, setSettings] = useState<SoundboardSettings | null>(null);
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
+  const [editorState, setEditorState] = useState<
+    { mode: "create" } | { mode: "edit"; padId: string } | null
+  >(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -53,6 +58,9 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
 
       setBoards(loadedBoards);
       setSettings(loadedSettings);
+      playerInstance.setAllowConcurrentPlayback(
+        loadedSettings.allowConcurrentPlayback,
+      );
 
       const nextActiveBoardId =
         loadedSettings.activeBoardId ?? loadedBoards[0]?.id ?? null;
@@ -80,13 +88,21 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     return () => {
       cancelled = true;
     };
-  }, [repositoryInstance]);
+  }, [playerInstance, repositoryInstance]);
 
   const activeBoard =
     boards.find((board) => board.id === activeBoardId) ?? boards[0] ?? null;
+  const editedPad =
+    editorState?.mode === "edit"
+      ? pads.find((pad) => pad.id === editorState.padId) ?? null
+      : null;
+  const editedPadIndex = editedPad
+    ? pads.findIndex((pad) => pad.id === editedPad.id)
+    : -1;
 
   const handleBoardSelect = async (boardId: string) => {
     setActiveBoardId(boardId);
+    setEditorState(null);
     const nextSettings = await repositoryInstance.updateSettings({
       activeBoardId: boardId,
     });
@@ -94,6 +110,115 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
 
     setSettings(nextSettings);
     setPads(nextPads);
+  };
+
+  const handleCreateBoard = async () => {
+    const nextBoard = await repositoryInstance.createBoard({
+      name: `Board ${boards.length + 1}`,
+    });
+    const nextSettings = await repositoryInstance.updateSettings({
+      activeBoardId: nextBoard.id,
+    });
+    const nextBoards = await repositoryInstance.listBoards();
+
+    setBoards(nextBoards);
+    setSettings(nextSettings);
+    setActiveBoardId(nextBoard.id);
+    setPads([]);
+    setEditorState(null);
+  };
+
+  const refreshPads = async (boardId: string) => {
+    const nextPads = await repositoryInstance.listPads(boardId);
+
+    setPads(nextPads);
+    return nextPads;
+  };
+
+  const handleEditorSave = async (value: {
+    id?: string;
+    label: string;
+    color: string;
+    audioBlob: Blob;
+    audioName: string;
+    mimeType: string;
+  }) => {
+    if (!activeBoardId) {
+      return;
+    }
+
+    const nextOrder =
+      editorState?.mode === "edit" && editedPad
+        ? editedPad.order
+        : Math.max(0, ...pads.map((pad) => pad.order)) + 1;
+
+    await repositoryInstance.savePad({
+      id: value.id,
+      boardId: activeBoardId,
+      label: value.label.trim(),
+      color: value.color,
+      order: nextOrder,
+      audioBlob: value.audioBlob,
+      audioName: value.audioName,
+      mimeType: value.mimeType,
+    });
+
+    await refreshPads(activeBoardId);
+    setEditorState(null);
+  };
+
+  const handleDeletePad = async () => {
+    if (!activeBoardId || !editedPad) {
+      return;
+    }
+
+    await repositoryInstance.deletePad(editedPad.id);
+    await refreshPads(activeBoardId);
+    setEditorState(null);
+  };
+
+  const movePad = async (direction: -1 | 1) => {
+    if (!activeBoardId || !editedPad) {
+      return;
+    }
+
+    const targetPad = pads[editedPadIndex + direction];
+
+    if (!targetPad) {
+      return;
+    }
+
+    await repositoryInstance.savePad({
+      id: editedPad.id,
+      boardId: editedPad.boardId,
+      label: editedPad.label,
+      color: editedPad.color,
+      order: targetPad.order,
+      audioBlob: editedPad.audioBlob,
+      audioName: editedPad.audioName,
+      mimeType: editedPad.mimeType,
+    });
+    await repositoryInstance.savePad({
+      id: targetPad.id,
+      boardId: targetPad.boardId,
+      label: targetPad.label,
+      color: targetPad.color,
+      order: editedPad.order,
+      audioBlob: targetPad.audioBlob,
+      audioName: targetPad.audioName,
+      mimeType: targetPad.mimeType,
+    });
+
+    await refreshPads(activeBoardId);
+  };
+
+  const handleConcurrentPlaybackToggle = async (value: boolean) => {
+    const nextSettings = await repositoryInstance.updateSettings({
+      allowConcurrentPlayback: value,
+    });
+
+    setSettings(nextSettings);
+    playerInstance.setAllowConcurrentPlayback(value);
   };
 
   const handlePlay = async (pad: SoundboardPad) => {
@@ -124,6 +249,13 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
             <p className="mt-2 text-sm leading-6 text-[var(--color-muted)]">
               Your saved boards and sounds will appear here after the first setup.
             </p>
+            <button
+              className="mt-6 rounded-full bg-[var(--color-ink)] px-4 py-3 text-sm font-medium text-[var(--color-paper)] transition-transform duration-200 hover:-translate-y-0.5"
+              onClick={() => void handleCreateBoard()}
+              type="button"
+            >
+              Create Board
+            </button>
           </div>
         </div>
       </main>
@@ -136,6 +268,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
         <BoardSidebar
           activeBoardId={activeBoard?.id ?? null}
           boards={boards}
+          onCreateBoard={() => void handleCreateBoard()}
           onSelectBoard={(boardId) => void handleBoardSelect(boardId)}
         />
 
@@ -155,15 +288,43 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
               </div>
             </div>
 
-            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--color-line)] bg-[rgba(255,255,255,0.65)] px-3 py-2 text-sm text-[var(--color-muted)]">
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--color-accent)]" />
-              Concurrent Playback{" "}
-              {settings?.allowConcurrentPlayback ? "On" : "Off"}
+            <div className="flex flex-wrap items-center gap-3">
+              <SettingsPanel
+                allowConcurrentPlayback={settings?.allowConcurrentPlayback ?? true}
+                onToggle={(value) => void handleConcurrentPlaybackToggle(value)}
+              />
+              <button
+                className="rounded-full bg-[var(--color-ink)] px-4 py-3 text-sm font-medium text-[var(--color-paper)] transition-transform duration-200 hover:-translate-y-0.5"
+                onClick={() => setEditorState({ mode: "create" })}
+                type="button"
+              >
+                Add Sound
+              </button>
             </div>
           </header>
 
-          <div className="px-5 py-5 md:px-8 md:py-7">
-            <PadGrid pads={pads} onPlay={(pad) => void handlePlay(pad)} />
+          <div className="grid gap-6 px-5 py-5 md:grid-cols-[minmax(0,1fr)_320px] md:px-8 md:py-7">
+            <PadGrid
+              onEdit={(pad) => setEditorState({ mode: "edit", padId: pad.id })}
+              onPlay={(pad) => void handlePlay(pad)}
+              pads={pads}
+            />
+            <PadEditor
+              key={
+                editorState?.mode === "edit"
+                  ? editorState.padId
+                  : `${activeBoardId ?? "none"}-${editorState?.mode ?? "idle"}`
+              }
+              canMoveDown={editedPadIndex >= 0 && editedPadIndex < pads.length - 1}
+              canMoveUp={editedPadIndex > 0}
+              mode={editorState?.mode ?? "create"}
+              onClose={() => setEditorState(null)}
+              onDelete={() => void handleDeletePad()}
+              onMoveDown={() => void movePad(1)}
+              onMoveUp={() => void movePad(-1)}
+              onSave={handleEditorSave}
+              pad={editedPad}
+            />
           </div>
         </section>
       </div>

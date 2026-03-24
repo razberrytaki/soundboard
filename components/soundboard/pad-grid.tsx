@@ -4,10 +4,11 @@ import { PadCard } from "@/components/soundboard/pad-card";
 
 type PadGridProps = {
   pads: SoundboardPad[];
+  onEdit(pad: SoundboardPad): void;
   onPlay(pad: SoundboardPad): void;
 };
 
-export function PadGrid({ pads, onPlay }: PadGridProps) {
+export function PadGrid({ pads, onEdit, onPlay }: PadGridProps) {
   if (pads.length === 0) {
     return (
       <div className="rounded-[28px] border border-dashed border-[var(--color-line)] bg-[rgba(255,255,255,0.42)] px-6 py-10 text-center">
@@ -27,7 +28,7 @@ export function PadGrid({ pads, onPlay }: PadGridProps) {
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
       {pads.map((pad) => (
-        <PadCard key={pad.id} pad={pad} onPlay={onPlay} />
+        <PadCard key={pad.id} onEdit={onEdit} onPlay={onPlay} pad={pad} />
       ))}
     </div>
   );
