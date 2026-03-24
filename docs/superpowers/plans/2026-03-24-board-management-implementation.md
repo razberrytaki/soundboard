@@ -24,6 +24,14 @@
 - Modify: `components/soundboard/soundboard-app.tsx`
 - Modify: `tests/components/soundboard/soundboard-app.test.tsx`
 
+## Naming Rules
+
+- Board names are display-only values; IDs remain the source of identity
+- Duplicate board names are allowed
+- Input is trimmed before save
+- Empty or whitespace-only values fall back to generated names such as `Board 3`
+- Board names are limited to 20 characters in the UI and save flow
+
 ## Task 1: Extend Board Repository Operations
 
 **Files:**
@@ -110,6 +118,7 @@ Implementation requirements:
 - preserve row click to select the board
 - keep actions secondary and compact
 - render input plus confirm/cancel controls when a row is being edited
+- enforce the 20-character limit in the text input
 
 - [ ] **Step 4: Re-run the component test file and confirm the sidebar rendering cases now pass**
 
@@ -159,7 +168,10 @@ Implementation requirements:
 - generate fallback board names based on board count
 - enter rename mode immediately after board creation
 - trim board names before save
+- allow duplicate names without warning
 - keep fallback names when the submitted name is blank
+- treat whitespace-only names as blank after trim
+- keep or clamp names to 20 characters before persistence
 - check pad count before delete confirmation
 - transition active board correctly after delete
 

@@ -17,6 +17,9 @@ import type {
 
 const DISCARD_CHANGES_MESSAGE =
   "Discard unsaved changes?\nYour current pad edits will be lost.";
+const DELETE_BOARD_MESSAGE =
+  "Delete this board?\nThis board contains saved sound pads. Deleting it will remove them from this browser.";
+const BOARD_NAME_LIMIT = 20;
 
 type SoundboardPlayer = {
   play(blob: Blob): Promise<void>;
@@ -30,6 +33,14 @@ type SoundboardAppProps = {
   player?: SoundboardPlayer;
 };
 
+function clampBoardNameLength(value: string) {
+  return Array.from(value).slice(0, BOARD_NAME_LIMIT).join("");
+}
+
+function getNextBoardName(records: SoundboardBoard[]) {
+  return `Board ${records.length + 1}`;
+}
+
 export function SoundboardApp({ repository, player }: SoundboardAppProps) {
   const [repositoryInstance] = useState<SoundboardRepository>(
     () => repository ?? createSoundboardDb(),
@@ -41,6 +52,10 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
   const [pads, setPads] = useState<SoundboardPad[]>([]);
   const [settings, setSettings] = useState<SoundboardSettings | null>(null);
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
+  const [boardEditorState, setBoardEditorState] = useState<{
+    boardId: string;
+    draftName: string;
+  } | null>(null);
   const [editorState, setEditorState] = useState<
     { mode: "create" } | { mode: "edit"; padId: string } | null
   >(null);
@@ -105,6 +120,18 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     ? pads.findIndex((pad) => pad.id === editedPad.id)
     : -1;
 
+  const resetPadEditor = () => {
+    setCreateEditorVersion((current) => current + 1);
+    setHasUnsavedChanges(false);
+    setEditorState(null);
+  };
+
+  const normalizeBoardName = (value: string, fallbackName: string) => {
+    const trimmedValue = clampBoardNameLength(value.trim());
+
+    return trimmedValue.length > 0 ? trimmedValue : fallbackName;
+  };
+
   const requestEditorStateChange = (
     nextState: { mode: "create" } | { mode: "edit"; padId: string },
   ) => {
@@ -130,9 +157,8 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
 
   const handleBoardSelect = async (boardId: string) => {
     setActiveBoardId(boardId);
-    setCreateEditorVersion((current) => current + 1);
-    setHasUnsavedChanges(false);
-    setEditorState(null);
+    setBoardEditorState(null);
+    resetPadEditor();
     const nextSettings = await repositoryInstance.updateSettings({
       activeBoardId: boardId,
     });
@@ -143,21 +169,26 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
   };
 
   const handleCreateBoard = async () => {
+    const fallbackName = getNextBoardName(boards);
     const nextBoard = await repositoryInstance.createBoard({
-      name: `Board ${boards.length + 1}`,
+      name: fallbackName,
     });
-    const nextSettings = await repositoryInstance.updateSettings({
-      activeBoardId: nextBoard.id,
-    });
-    const nextBoards = await repositoryInstance.listBoards();
+    const [nextSettings, nextBoards] = await Promise.all([
+      repositoryInstance.updateSettings({
+        activeBoardId: nextBoard.id,
+      }),
+      repositoryInstance.listBoards(),
+    ]);
 
     setBoards(nextBoards);
     setSettings(nextSettings);
     setActiveBoardId(nextBoard.id);
     setPads([]);
-    setCreateEditorVersion((current) => current + 1);
-    setHasUnsavedChanges(false);
-    setEditorState(null);
+    resetPadEditor();
+    setBoardEditorState({
+      boardId: nextBoard.id,
+      draftName: fallbackName,
+    });
   };
 
   const refreshPads = async (boardId: string) => {
@@ -208,9 +239,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
 
     await repositoryInstance.deletePad(editedPad.id);
     await refreshPads(activeBoardId);
-    setCreateEditorVersion((current) => current + 1);
-    setHasUnsavedChanges(false);
-    setEditorState(null);
+    resetPadEditor();
   };
 
   const movePad = async (direction: -1 | 1) => {
@@ -246,6 +275,104 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     });
 
     await refreshPads(activeBoardId);
+  };
+
+  const handleBoardRenameStart = (boardId: string) => {
+    const board = boards.find((entry) => entry.id === boardId);
+
+    if (!board) {
+      return;
+    }
+
+    setBoardEditorState({
+      boardId,
+      draftName: board.name,
+    });
+  };
+
+  const handleBoardEditingNameChange = (value: string) => {
+    setBoardEditorState((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        draftName: clampBoardNameLength(value),
+      };
+    });
+  };
+
+  const handleBoardRenameCancel = () => {
+    setBoardEditorState(null);
+  };
+
+  const handleBoardRenameSave = async (boardId: string) => {
+    const board = boards.find((entry) => entry.id === boardId);
+
+    if (!board || boardEditorState?.boardId !== boardId) {
+      return;
+    }
+
+    const nextName = normalizeBoardName(boardEditorState.draftName, board.name);
+
+    if (nextName === board.name) {
+      setBoardEditorState(null);
+      return;
+    }
+
+    await repositoryInstance.updateBoard({
+      id: boardId,
+      name: nextName,
+    });
+
+    const nextBoards = await repositoryInstance.listBoards();
+
+    setBoards(nextBoards);
+    setBoardEditorState(null);
+  };
+
+  const handleBoardDelete = async (boardId: string) => {
+    const boardPads = await repositoryInstance.listPads(boardId);
+
+    if (
+      boardPads.length > 0 &&
+      !window.confirm(DELETE_BOARD_MESSAGE)
+    ) {
+      return;
+    }
+
+    await repositoryInstance.deleteBoard(boardId);
+
+    const [nextBoards, nextSettings] = await Promise.all([
+      repositoryInstance.listBoards(),
+      repositoryInstance.getSettings(),
+    ]);
+    const nextActiveBoardId =
+      nextSettings.activeBoardId ?? nextBoards[0]?.id ?? null;
+    const activeBoardChanged = nextActiveBoardId !== activeBoardId;
+    const nextPads =
+      activeBoardChanged && nextActiveBoardId
+        ? await repositoryInstance.listPads(nextActiveBoardId)
+        : [];
+
+    setBoards(nextBoards);
+    setSettings(nextSettings);
+    setActiveBoardId(nextActiveBoardId);
+    setBoardEditorState((current) =>
+      current?.boardId === boardId ? null : current,
+    );
+
+    if (activeBoardChanged) {
+      setPads(nextPads);
+      resetPadEditor();
+      return;
+    }
+
+    if (nextBoards.length === 0) {
+      setPads([]);
+      resetPadEditor();
+    }
   };
 
   const handleConcurrentPlaybackToggle = async (value: boolean) => {
@@ -304,8 +431,15 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
         <BoardSidebar
           activeBoardId={activeBoard?.id ?? null}
           boards={boards}
+          editingBoardId={boardEditorState?.boardId ?? null}
+          editingName={boardEditorState?.draftName ?? ""}
           onCreateBoard={() => void handleCreateBoard()}
+          onDeleteBoard={(boardId) => void handleBoardDelete(boardId)}
+          onEditingNameChange={handleBoardEditingNameChange}
+          onCancelRename={handleBoardRenameCancel}
           onSelectBoard={(boardId) => void handleBoardSelect(boardId)}
+          onStartRename={handleBoardRenameStart}
+          onSubmitRename={(boardId) => void handleBoardRenameSave(boardId)}
         />
 
         <section className="flex min-w-0 flex-col">

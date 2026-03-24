@@ -72,6 +72,22 @@ describe("createSoundboardDb", () => {
     expect(settings.allowConcurrentPlayback).toBe(false);
   });
 
+  it("renames a board and refreshes its updated timestamp", async () => {
+    const db = createSoundboardDb(makeDbName());
+    const board = await db.createBoard({ name: "Stream" });
+    await new Promise((resolve) => setTimeout(resolve, 1));
+
+    await db.updateBoard({
+      id: board.id,
+      name: "Studio",
+    });
+
+    const boards = await db.listBoards();
+
+    expect(boards[0]?.name).toBe("Studio");
+    expect(boards[0]?.updatedAt).not.toBe(board.updatedAt);
+  });
+
   it("deletes a stored pad", async () => {
     const db = createSoundboardDb(makeDbName());
     const board = await db.createBoard({ name: "Reactions" });
@@ -90,5 +106,50 @@ describe("createSoundboardDb", () => {
     const pads = await db.listPads(board.id);
 
     expect(pads).toHaveLength(0);
+  });
+
+  it("deletes a board together with its pads", async () => {
+    const db = createSoundboardDb(makeDbName());
+    const board = await db.createBoard({ name: "Memes" });
+
+    await db.savePad({
+      boardId: board.id,
+      label: "Laugh",
+      color: "#4a507a",
+      order: 1,
+      audioBlob: new Blob(["c"], { type: "audio/mpeg" }),
+      audioName: "laugh.mp3",
+      mimeType: "audio/mpeg",
+    });
+
+    await db.deleteBoard(board.id);
+
+    const [boards, pads, settings] = await Promise.all([
+      db.listBoards(),
+      db.listPads(board.id),
+      db.getSettings(),
+    ]);
+
+    expect(boards).toHaveLength(0);
+    expect(pads).toHaveLength(0);
+    expect(settings.activeBoardId).toBeNull();
+  });
+
+  it("promotes the next board when deleting the active board", async () => {
+    const db = createSoundboardDb(makeDbName());
+    const boardOne = await db.createBoard({ name: "Stream" });
+    const boardTwo = await db.createBoard({ name: "Game" });
+    const boardThree = await db.createBoard({ name: "Memes" });
+
+    await db.updateSettings({ activeBoardId: boardTwo.id });
+    await db.deleteBoard(boardTwo.id);
+
+    const [boards, settings] = await Promise.all([
+      db.listBoards(),
+      db.getSettings(),
+    ]);
+
+    expect(boards.map((board) => board.id)).toEqual([boardOne.id, boardThree.id]);
+    expect(settings.activeBoardId).toBe(boardThree.id);
   });
 });

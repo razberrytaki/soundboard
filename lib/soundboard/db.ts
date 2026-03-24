@@ -6,6 +6,7 @@ import type {
   SoundboardPad,
   SoundboardRepository,
   SoundboardSettings,
+  UpdateBoardInput,
   UpdateSettingsInput,
 } from "@/lib/soundboard/types";
 
@@ -111,6 +112,26 @@ function sortBoards(records: SoundboardBoard[]) {
   });
 }
 
+function getNextActiveBoardId(
+  records: SoundboardBoard[],
+  deletedBoardId: string,
+) {
+  const sortedBoards = sortBoards(records);
+  const deletedBoardIndex = sortedBoards.findIndex(
+    (board) => board.id === deletedBoardId,
+  );
+
+  if (deletedBoardIndex === -1) {
+    return sortedBoards[0]?.id ?? null;
+  }
+
+  return (
+    sortedBoards[deletedBoardIndex + 1]?.id ??
+    sortedBoards[deletedBoardIndex - 1]?.id ??
+    null
+  );
+}
+
 export function createSoundboardDb(name = "soundboard"): SoundboardRepository {
   let databasePromise: Promise<IDBDatabase> | undefined;
 
@@ -156,6 +177,77 @@ export function createSoundboardDb(name = "soundboard"): SoundboardRepository {
       await transactionDone(transaction);
 
       return board;
+    },
+
+    async updateBoard(input: UpdateBoardInput) {
+      const database = await getDatabase();
+      const transaction = database.transaction(BOARDS_STORE, "readwrite");
+      const store = transaction.objectStore(BOARDS_STORE);
+      const existing = await requestToPromise(
+        store.get(input.id) as IDBRequest<SoundboardBoard | undefined>,
+      );
+
+      if (!existing) {
+        transaction.abort();
+        throw new Error(`Board not found: ${input.id}`);
+      }
+
+      const nextBoard: SoundboardBoard = {
+        ...existing,
+        name: input.name,
+        updatedAt: new Date().toISOString(),
+      };
+
+      store.put(nextBoard);
+      await transactionDone(transaction);
+
+      return nextBoard;
+    },
+
+    async deleteBoard(boardId: string) {
+      const database = await getDatabase();
+      const transaction = database.transaction(
+        [BOARDS_STORE, PADS_STORE, SETTINGS_STORE],
+        "readwrite",
+      );
+      const boardStore = transaction.objectStore(BOARDS_STORE);
+      const padStore = transaction.objectStore(PADS_STORE);
+      const settingsStore = transaction.objectStore(SETTINGS_STORE);
+      const padIndex = padStore.index("boardId");
+      const [boards, existingSettings, padKeys] = await Promise.all([
+        requestToPromise(
+          boardStore.getAll() as IDBRequest<SoundboardBoard[]>,
+        ),
+        requestToPromise(
+          settingsStore.get(SETTINGS_KEY) as IDBRequest<SettingsRecord | undefined>,
+        ),
+        requestToPromise(
+          padIndex.getAllKeys(IDBKeyRange.only(boardId)) as IDBRequest<
+            IDBValidKey[]
+          >,
+        ),
+      ]);
+
+      boardStore.delete(boardId);
+
+      for (const key of padKeys) {
+        padStore.delete(key);
+      }
+
+      const currentSettings: SettingsRecord = {
+        key: SETTINGS_KEY,
+        ...(existingSettings ?? defaultSoundboardSettings),
+      };
+      const nextSettings: SettingsRecord = {
+        ...currentSettings,
+        activeBoardId:
+          currentSettings.activeBoardId === boardId
+            ? getNextActiveBoardId(boards, boardId)
+            : currentSettings.activeBoardId,
+      };
+
+      settingsStore.put(nextSettings);
+      await transactionDone(transaction);
     },
 
     async listBoards() {

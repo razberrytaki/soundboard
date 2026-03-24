@@ -16,6 +16,7 @@ The design keeps board management inside the existing left sidebar. This matches
 - Ask for confirmation before deleting a board that contains one or more pads
 - Let users provide a board name at creation time
 - Keep `Board 1`, `Board 2`, and so on as the fallback naming pattern when the user leaves the name empty
+- Allow duplicate board names because board identity is based on `id`, not `name`
 
 ## Non-Goals
 
@@ -54,6 +55,8 @@ The repository interface needs two new operations:
 
 Deleting a board must also delete all pads owned by that board and update `settings.activeBoardId`.
 
+Board names remain display values only. Duplicate names are valid because application logic identifies boards by `id`.
+
 ## Board Lifecycle Rules
 
 ### Create
@@ -68,8 +71,10 @@ Deleting a board must also delete all pads owned by that board and update `setti
 
 1. User triggers rename on a board row
 2. The board label turns into an inline text input
-3. Confirming a non-empty value stores the trimmed name
-4. Confirming an empty value restores the current fallback-or-existing name instead of saving an empty string
+3. Input is trimmed before validation and save
+4. Confirming a non-empty value stores the trimmed name
+5. Confirming an empty value restores the current fallback-or-existing name instead of saving an empty string
+6. Board names are capped at 20 characters in the UI
 5. Cancelling exits edit mode without changing the board
 
 ### Delete
@@ -113,6 +118,21 @@ For an empty board, delete immediately without a confirmation step.
 ### Rename/Create Empty Name Handling
 
 Do not show a warning dialog for an empty board name. Instead, normalize to the generated fallback name.
+
+Whitespace-only input is treated the same as an empty name after trimming.
+
+### Duplicate Name Handling
+
+Duplicate board names are allowed.
+
+The UI should not block or warn when a submitted board name matches an existing board name, because the board list relies on stable record IDs for selection and persistence.
+
+### Character Handling
+
+Board names should accept normal Unicode text, including Hangul and emoji, with two constraints:
+
+- trim leading and trailing whitespace before save
+- limit the stored display name to 20 characters
 
 ## Acceptance Criteria
 

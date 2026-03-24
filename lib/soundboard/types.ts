@@ -28,6 +28,11 @@ export type CreateBoardInput = {
   name: string;
 };
 
+export type UpdateBoardInput = {
+  id: string;
+  name: string;
+};
+
 export type SavePadInput = {
   id?: string;
   boardId: string;
@@ -43,6 +48,8 @@ export type UpdateSettingsInput = Partial<SoundboardSettings>;
 
 export type SoundboardRepository = {
   createBoard(input: CreateBoardInput): Promise<SoundboardBoard>;
+  updateBoard(input: UpdateBoardInput): Promise<SoundboardBoard>;
+  deleteBoard(boardId: string): Promise<void>;
   listBoards(): Promise<SoundboardBoard[]>;
   getSettings(): Promise<SoundboardSettings>;
   updateSettings(input: UpdateSettingsInput): Promise<SoundboardSettings>;
