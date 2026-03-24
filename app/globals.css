@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+:root {
+  --color-paper: #fbf8f2;
+  --color-shell: #f5eee2;
+  --color-ink: #171412;
+  --color-muted: #6c6257;
+  --color-line: rgba(23, 20, 18, 0.11);
+  --color-accent: #d95b43;
+  --shadow-shell: 0 28px 80px rgba(76, 49, 24, 0.12);
+  --font-sans: "Avenir Next", "Helvetica Neue", "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", "SF Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: #efe7da;
+  color: var(--color-ink);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-sans), sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(217, 91, 67, 0.2);
+}
