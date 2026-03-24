@@ -6,6 +6,7 @@ const config = [
   ...nextTypescript,
   {
     ignores: [
+      ".open-next/**",
       ".next/**",
       ".pnpm-store/**",
       ".superpowers/**",
