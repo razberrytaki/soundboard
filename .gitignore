@@ -2,9 +2,11 @@
 node_modules/
 .pnpm-store/
 .superpowers/
+.agents/
 .worktrees/
 .open-next/
 .wrangler/
 dist/
 out/
 coverage/
+skills-lock.json

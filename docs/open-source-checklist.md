@@ -9,7 +9,7 @@ This checklist captures the minimum release gate before publishing the repositor
 - [x] Remove project-specific custom domain configuration from `wrangler.jsonc`
 - [x] Verify the current tree does not contain `.env` files, private keys, certificates, or API tokens
 - [x] Verify the public `main` history no longer contains the removed custom domain
-- [ ] Delete local-only backup branches that preserve pre-public history once no longer needed
+- [x] Delete local-only backup branches that preserve pre-public history once no longer needed
 
 ## Code Quality
 
