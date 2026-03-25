@@ -8,6 +8,23 @@ function makeDbName() {
   return `soundboard-test-${crypto.randomUUID()}`;
 }
 
+function transactionDone(transaction: IDBTransaction) {
+  return new Promise<void>((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+}
+
+async function openRawDatabase(name: string) {
+  return await new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(name);
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
 describe("createSoundboardDb", () => {
   it("creates the first board and restores it as active", async () => {
     const db = createSoundboardDb(makeDbName());
@@ -29,6 +46,33 @@ describe("createSoundboardDb", () => {
     const boards = await db.listBoards();
 
     expect(boards.map((board) => board.name)).toEqual(["Stream", "Game"]);
+  });
+
+  it("breaks board order ties by created timestamp", async () => {
+    const name = makeDbName();
+    const db = createSoundboardDb(name);
+    const stream = await db.createBoard({ name: "Stream" });
+    const game = await db.createBoard({ name: "Game" });
+    const rawDatabase = await openRawDatabase(name);
+    const transaction = rawDatabase.transaction("boards", "readwrite");
+    const store = transaction.objectStore("boards");
+
+    store.put({
+      ...stream,
+      order: 1,
+      createdAt: "2026-03-24T00:00:02.000Z",
+    });
+    store.put({
+      ...game,
+      order: 1,
+      createdAt: "2026-03-24T00:00:01.000Z",
+    });
+    await transactionDone(transaction);
+
+    const boards = await db.listBoards();
+
+    expect(boards.map((board) => board.name)).toEqual(["Game", "Stream"]);
+    rawDatabase.close();
   });
 
   it("stores pads with blobs and returns them sorted by order", async () => {
@@ -60,6 +104,35 @@ describe("createSoundboardDb", () => {
     expect(pads.map((pad) => pad.label)).toEqual(["Clap", "Airhorn"]);
     expect(pads[0]?.audioBlob.type).toBe("audio/mpeg");
     expect(pads[0]?.audioBlob.size).toBe(1);
+  });
+
+  it("breaks pad order ties by created timestamp", async () => {
+    const db = createSoundboardDb(makeDbName());
+    const board = await db.createBoard({ name: "Memes" });
+
+    await db.savePad({
+      boardId: board.id,
+      label: "Airhorn",
+      color: "#d95b43",
+      order: 1,
+      audioBlob: new Blob(["a"], { type: "audio/mpeg" }),
+      audioName: "airhorn.mp3",
+      mimeType: "audio/mpeg",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    await db.savePad({
+      boardId: board.id,
+      label: "Clap",
+      color: "#34645e",
+      order: 1,
+      audioBlob: new Blob(["b"], { type: "audio/mpeg" }),
+      audioName: "clap.mp3",
+      mimeType: "audio/mpeg",
+    });
+
+    const pads = await db.listPads(board.id);
+
+    expect(pads.map((pad) => pad.label)).toEqual(["Airhorn", "Clap"]);
   });
 
   it("updates global playback settings", async () => {
@@ -220,6 +293,23 @@ describe("createSoundboardDb", () => {
     ]);
 
     expect(boards.map((board) => board.id)).toEqual([boardOne.id]);
+    expect(settings.activeBoardId).toBe(boardOne.id);
+  });
+
+  it("falls back to the first board when the active board id points at a missing record", async () => {
+    const db = createSoundboardDb(makeDbName());
+    const boardOne = await db.createBoard({ name: "Stream" });
+    const boardTwo = await db.createBoard({ name: "Game" });
+
+    await db.updateSettings({ activeBoardId: "missing-board" });
+    await db.deleteBoard("missing-board");
+
+    const [boards, settings] = await Promise.all([
+      db.listBoards(),
+      db.getSettings(),
+    ]);
+
+    expect(boards.map((board) => board.id)).toEqual([boardOne.id, boardTwo.id]);
     expect(settings.activeBoardId).toBe(boardOne.id);
   });
 });
