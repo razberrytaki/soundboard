@@ -1025,6 +1025,62 @@ describe("SoundboardApp", () => {
     confirmSpy.mockRestore();
   });
 
+  it("prompts before discarding a dirty draft when switching boards", async () => {
+    const user = userEvent.setup();
+    const boards: SoundboardBoard[] = [
+      {
+        id: "board-1",
+        name: "Stream",
+        order: 1,
+        createdAt: "2026-03-24T00:00:00.000Z",
+        updatedAt: "2026-03-24T00:00:00.000Z",
+      },
+      {
+        id: "board-2",
+        name: "Game",
+        order: 2,
+        createdAt: "2026-03-24T00:00:01.000Z",
+        updatedAt: "2026-03-24T00:00:01.000Z",
+      },
+    ];
+    const repository = createRepositoryFixture({
+      boards,
+      padsByBoardId: {
+        "board-1": [createPad({ boardId: "board-1", label: "Airhorn" })],
+        "board-2": [createPad({ id: "pad-2", boardId: "board-2", label: "Victory" })],
+      },
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await user.type(
+      await screen.findByRole("textbox", { name: /^name$/i }),
+      "Draft pad",
+    );
+    await user.click(screen.getByRole("button", { name: "Game" }));
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      "Discard unsaved changes?\nYour current pad edits will be lost.",
+    );
+    expect(screen.getByRole("heading", { name: "Stream" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /^name$/i })).toHaveValue(
+      "Draft pad",
+    );
+
+    confirmSpy.mockRestore();
+  });
+
   it("edits an existing pad", async () => {
     const user = userEvent.setup();
     const boards: SoundboardBoard[] = [

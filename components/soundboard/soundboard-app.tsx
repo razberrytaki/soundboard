@@ -153,6 +153,14 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
   };
 
   const handleBoardSelect = async (boardId: string) => {
+    if (boardId === activeBoardId) {
+      return;
+    }
+
+    if (hasUnsavedChanges && !window.confirm(DISCARD_CHANGES_MESSAGE)) {
+      return;
+    }
+
     setActiveBoardId(boardId);
     setBoardEditorState(null);
     resetPadEditor();

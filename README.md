@@ -120,7 +120,7 @@ components/soundboard/       UI components for boards, pads, settings, and inspe
 lib/soundboard/              IndexedDB, audio playback, defaults, types, and validation
 tests/components/            Component-level tests
 tests/lib/                   Unit tests for local soundboard modules
-docs/superpowers/            Internal design and planning documents
+docs/architecture.md         Public architecture and persistence overview
 wrangler.jsonc               Cloudflare Workers configuration
 open-next.config.ts          OpenNext configuration
 ```
