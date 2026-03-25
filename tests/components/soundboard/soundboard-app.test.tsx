@@ -385,6 +385,84 @@ describe("SoundboardApp", () => {
     expect(screen.getByRole("button", { name: "Studio" })).toBeInTheDocument();
   });
 
+  it("saves a board rename when Enter is pressed in the name field", async () => {
+    const user = userEvent.setup();
+    const boards: SoundboardBoard[] = [
+      {
+        id: "board-1",
+        name: "Stream",
+        order: 1,
+        createdAt: "2026-03-24T00:00:00.000Z",
+        updatedAt: "2026-03-24T00:00:00.000Z",
+      },
+    ];
+    const repository = createRepositoryFixture({
+      boards,
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await user.click(await screen.findByRole("button", { name: /rename stream/i }));
+    await user.clear(screen.getByRole("textbox", { name: /board name/i }));
+    await user.type(screen.getByRole("textbox", { name: /board name/i }), "Studio");
+    await user.keyboard("{Enter}");
+
+    expect(await screen.findByRole("heading", { name: "Studio" })).toBeInTheDocument();
+    expect(repository.updateBoard).toHaveBeenCalledWith({
+      id: "board-1",
+      name: "Studio",
+    });
+  });
+
+  it("cancels a board rename when Escape is pressed in the name field", async () => {
+    const user = userEvent.setup();
+    const boards: SoundboardBoard[] = [
+      {
+        id: "board-1",
+        name: "Stream",
+        order: 1,
+        createdAt: "2026-03-24T00:00:00.000Z",
+        updatedAt: "2026-03-24T00:00:00.000Z",
+      },
+    ];
+    const repository = createRepositoryFixture({
+      boards,
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await user.click(await screen.findByRole("button", { name: /rename stream/i }));
+    await user.clear(screen.getByRole("textbox", { name: /board name/i }));
+    await user.type(screen.getByRole("textbox", { name: /board name/i }), "Studio");
+    await user.keyboard("{Escape}");
+
+    expect(await screen.findByRole("heading", { name: "Stream" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /board name/i })).not.toBeInTheDocument();
+    expect(repository.updateBoard).not.toHaveBeenCalled();
+  });
+
   it("keeps the generated fallback name when a new board name is blank", async () => {
     const user = userEvent.setup();
     const boards: SoundboardBoard[] = [
@@ -1081,6 +1159,58 @@ describe("SoundboardApp", () => {
     confirmSpy.mockRestore();
   });
 
+  it("discards a dirty draft when confirmation is accepted during board switching", async () => {
+    const user = userEvent.setup();
+    const boards: SoundboardBoard[] = [
+      {
+        id: "board-1",
+        name: "Stream",
+        order: 1,
+        createdAt: "2026-03-24T00:00:00.000Z",
+        updatedAt: "2026-03-24T00:00:00.000Z",
+      },
+      {
+        id: "board-2",
+        name: "Game",
+        order: 2,
+        createdAt: "2026-03-24T00:00:01.000Z",
+        updatedAt: "2026-03-24T00:00:01.000Z",
+      },
+    ];
+    const repository = createRepositoryFixture({
+      boards,
+      padsByBoardId: {
+        "board-1": [createPad({ boardId: "board-1", label: "Airhorn" })],
+        "board-2": [createPad({ id: "pad-2", boardId: "board-2", label: "Victory" })],
+      },
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await user.type(
+      await screen.findByRole("textbox", { name: /^name$/i }),
+      "Draft pad",
+    );
+    await user.click(screen.getByRole("button", { name: "Game" }));
+
+    expect(await screen.findByRole("heading", { name: "Game" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /^name$/i })).toHaveValue("");
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+
+    confirmSpy.mockRestore();
+  });
+
   it("edits an existing pad", async () => {
     const user = userEvent.setup();
     const boards: SoundboardBoard[] = [
@@ -1193,6 +1323,52 @@ describe("SoundboardApp", () => {
 
     await user.click(await screen.findByRole("button", { name: /edit clap/i }));
     await user.click(screen.getByRole("button", { name: /move up/i }));
+
+    await waitFor(() => {
+      const padButtons = screen.getAllByRole("button", {
+        name: /^(Airhorn|Clap)$/,
+      });
+
+      expect(padButtons[0]).toHaveAccessibleName("Clap");
+      expect(padButtons[1]).toHaveAccessibleName("Airhorn");
+    });
+  });
+
+  it("moves a pad downward without drag and drop", async () => {
+    const user = userEvent.setup();
+    const boards: SoundboardBoard[] = [
+      {
+        id: "board-1",
+        name: "Stream",
+        order: 1,
+        createdAt: "2026-03-24T00:00:00.000Z",
+        updatedAt: "2026-03-24T00:00:00.000Z",
+      },
+    ];
+    const repository = createRepositoryFixture({
+      boards,
+      padsByBoardId: {
+        "board-1": [
+          createPad({ id: "pad-1", boardId: "board-1", label: "Airhorn", order: 1 }),
+          createPad({ id: "pad-2", boardId: "board-1", label: "Clap", order: 2 }),
+        ],
+      },
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await user.click(await screen.findByRole("button", { name: /edit airhorn/i }));
+    await user.click(screen.getByRole("button", { name: /move down/i }));
 
     await waitFor(() => {
       const padButtons = screen.getAllByRole("button", {

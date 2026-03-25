@@ -72,6 +72,17 @@ describe("createSoundboardDb", () => {
     expect(settings.allowConcurrentPlayback).toBe(false);
   });
 
+  it("returns default settings before any records exist", async () => {
+    const db = createSoundboardDb(makeDbName());
+
+    const settings = await db.getSettings();
+
+    expect(settings).toEqual({
+      activeBoardId: null,
+      allowConcurrentPlayback: true,
+    });
+  });
+
   it("renames a board and refreshes its updated timestamp", async () => {
     const db = createSoundboardDb(makeDbName());
     const board = await db.createBoard({ name: "Stream" });
@@ -86,6 +97,17 @@ describe("createSoundboardDb", () => {
 
     expect(boards[0]?.name).toBe("Studio");
     expect(boards[0]?.updatedAt).not.toBe(board.updatedAt);
+  });
+
+  it("rejects attempts to rename a missing board", async () => {
+    const db = createSoundboardDb(makeDbName());
+
+    await expect(
+      db.updateBoard({
+        id: "missing-board",
+        name: "Studio",
+      }),
+    ).rejects.toThrow("Board not found: missing-board");
   });
 
   it("deletes a stored pad", async () => {
@@ -106,6 +128,37 @@ describe("createSoundboardDb", () => {
     const pads = await db.listPads(board.id);
 
     expect(pads).toHaveLength(0);
+  });
+
+  it("preserves createdAt when updating an existing pad", async () => {
+    const db = createSoundboardDb(makeDbName());
+    const board = await db.createBoard({ name: "Reactions" });
+    const original = await db.savePad({
+      boardId: board.id,
+      label: "Laugh",
+      color: "#4a507a",
+      order: 1,
+      audioBlob: new Blob(["c"], { type: "audio/mpeg" }),
+      audioName: "laugh.mp3",
+      mimeType: "audio/mpeg",
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 1));
+
+    const updated = await db.savePad({
+      id: original.id,
+      boardId: board.id,
+      label: "Crowd",
+      color: "#4a507a",
+      order: 1,
+      audioBlob: new Blob(["d"], { type: "audio/mpeg" }),
+      audioName: "crowd.mp3",
+      mimeType: "audio/mpeg",
+    });
+
+    expect(updated.createdAt).toBe(original.createdAt);
+    expect(updated.updatedAt).not.toBe(original.updatedAt);
+    expect(updated.label).toBe("Crowd");
   });
 
   it("deletes a board together with its pads", async () => {
@@ -151,5 +204,22 @@ describe("createSoundboardDb", () => {
 
     expect(boards.map((board) => board.id)).toEqual([boardOne.id, boardThree.id]);
     expect(settings.activeBoardId).toBe(boardThree.id);
+  });
+
+  it("keeps the active board when deleting a different board", async () => {
+    const db = createSoundboardDb(makeDbName());
+    const boardOne = await db.createBoard({ name: "Stream" });
+    const boardTwo = await db.createBoard({ name: "Game" });
+
+    await db.updateSettings({ activeBoardId: boardOne.id });
+    await db.deleteBoard(boardTwo.id);
+
+    const [boards, settings] = await Promise.all([
+      db.listBoards(),
+      db.getSettings(),
+    ]);
+
+    expect(boards.map((board) => board.id)).toEqual([boardOne.id]);
+    expect(settings.activeBoardId).toBe(boardOne.id);
   });
 });
