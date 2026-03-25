@@ -34,6 +34,12 @@ pnpm exec opennextjs-cloudflare build
 
 If your change touches docs only, still verify the commands that are relevant to any edited code paths before asking for review.
 
+If you need a local coverage report while working, run:
+
+```bash
+pnpm test:coverage
+```
+
 ## Scope Guidelines
 
 - Keep changes small and reviewable

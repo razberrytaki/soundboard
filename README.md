@@ -68,6 +68,7 @@ pnpm dev
 pnpm build
 pnpm start
 pnpm test
+pnpm test:coverage
 pnpm lint
 pnpm preview
 pnpm deploy
@@ -79,6 +80,7 @@ What they do:
 - `pnpm build`: build the app with Next.js
 - `pnpm start`: start the production Next.js server locally
 - `pnpm test`: run the Vitest suite
+- `pnpm test:coverage`: run the Vitest suite with V8 coverage reporting
 - `pnpm lint`: run ESLint
 - `pnpm preview`: build with OpenNext and start a Cloudflare-style preview
 - `pnpm deploy`: build with OpenNext and deploy through Wrangler
@@ -95,6 +97,12 @@ pnpm exec opennextjs-cloudflare build
 ```
 
 This covers application behavior, linting, Next.js production output, and the OpenNext bundle used for Cloudflare Workers.
+
+When you need a coverage report for local analysis, run:
+
+```bash
+pnpm test:coverage
+```
 
 ## Browser Support
 

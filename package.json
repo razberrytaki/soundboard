@@ -11,7 +11,8 @@
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.17.3",
@@ -27,6 +28,7 @@
     "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vitest/coverage-v8": "^4.1.1",
     "eslint": "^9.39.4",
     "eslint-config-next": "16.2.1",
     "fake-indexeddb": "^6.2.5",
