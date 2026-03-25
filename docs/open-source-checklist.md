@@ -26,7 +26,7 @@ This checklist captures the minimum release gate before publishing the repositor
 - [x] Add a `LICENSE` file
 - [x] Replace internal planning artifacts with a public architecture document
 - [x] Ensure public docs reflect the current repository structure
-- [ ] Add contribution guidelines beyond the brief README section if outside contributions become active
+- [x] Add contribution guidelines beyond the brief README section if outside contributions become active
 
 ## Deployment
 
@@ -37,7 +37,7 @@ This checklist captures the minimum release gate before publishing the repositor
 
 ## Optional Nice-to-Haves
 
-- [ ] Add CI for `test`, `lint`, and `build`
-- [ ] Add a dedicated issue template and pull request template
-- [ ] Add screenshots or a short demo section to `README.md`
-- [ ] Add a more explicit browser support policy
+- [x] Add CI for `test`, `lint`, and `build`
+- [x] Add a dedicated issue template and pull request template
+- [x] Add screenshots or a short demo section to `README.md`
+- [x] Add a more explicit browser support policy

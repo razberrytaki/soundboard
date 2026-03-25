@@ -1,0 +1,40 @@
+name: Feature Request
+description: Suggest a new capability or workflow improvement.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion. Clear problem statements and concrete workflows are more useful than broad ideas.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What user problem or workflow gap does this solve?
+      placeholder: I want to reuse a soundboard setup on another machine without recreating every pad.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: Describe the feature you would like to see.
+      placeholder: Add an import/export flow for boards and pads stored in IndexedDB.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Describe any workarounds or alternative approaches you have considered.
+      placeholder: Exporting only board metadata is not enough because the audio files must come along too.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Add mockups, references, or examples if available.
+      placeholder: Paste any extra context here.

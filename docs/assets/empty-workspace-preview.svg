@@ -1,0 +1,16 @@
+<svg width="1440" height="900" viewBox="0 0 1440 900" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="emptyPreviewTitle emptyPreviewDesc">
+  <title id="emptyPreviewTitle">Soundboard empty workspace preview</title>
+  <desc id="emptyPreviewDesc">A preview illustration of the Soundboard empty workspace state prompting the user to create a first board.</desc>
+  <rect width="1440" height="900" fill="#EFE5D4"/>
+  <rect x="112" y="96" width="1216" height="708" rx="28" fill="#FBF8F2" stroke="rgba(23,20,18,0.11)"/>
+  <circle cx="720" cy="336" r="92" fill="#F2D1CA"/>
+  <path d="M680 338C680 303.346 708.346 275 743 275V275C777.654 275 806 303.346 806 338V342H680V338Z" fill="#D95B43"/>
+  <rect x="648" y="342" width="190" height="108" rx="26" fill="#171412"/>
+  <rect x="708" y="378" width="70" height="18" rx="9" fill="#FBF8F2"/>
+  <rect x="694" y="410" width="98" height="18" rx="9" fill="#FBF8F2" fill-opacity="0.76"/>
+  <text x="720" y="508" text-anchor="middle" fill="#6C6257" font-family="'IBM Plex Mono', monospace" font-size="18" letter-spacing="5">EMPTY WORKSPACE</text>
+  <text x="720" y="580" text-anchor="middle" fill="#171412" font-family="'Avenir Next', 'Helvetica Neue', sans-serif" font-size="60" font-weight="700">Create your first board</text>
+  <text x="720" y="634" text-anchor="middle" fill="#6C6257" font-family="'Avenir Next', 'Helvetica Neue', sans-serif" font-size="24">Your saved boards and sounds will appear here after the first setup.</text>
+  <rect x="608" y="684" width="224" height="70" rx="35" fill="#171412"/>
+  <text x="720" y="728" text-anchor="middle" fill="#FBF8F2" font-family="'Avenir Next', 'Helvetica Neue', sans-serif" font-size="26" font-weight="600">Create Board</text>
+</svg>

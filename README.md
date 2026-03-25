@@ -15,6 +15,16 @@ The project is currently built with Next.js and deployed to Cloudflare Workers t
 - Inspector workflow that keeps editing in-page instead of navigating away
 - IndexedDB persistence for boards, pads, settings, and audio blobs
 
+## Screenshots
+
+Board view preview:
+
+![Soundboard board view preview](docs/assets/board-preview.svg)
+
+Empty workspace preview:
+
+![Soundboard empty workspace preview](docs/assets/empty-workspace-preview.svg)
+
 ## Tech Stack
 
 Core runtime and framework versions currently used in this repository:
@@ -86,6 +96,19 @@ pnpm exec opennextjs-cloudflare build
 
 This covers application behavior, linting, Next.js production output, and the OpenNext bundle used for Cloudflare Workers.
 
+## Browser Support
+
+This project is intended to work on current desktop releases of:
+
+- Chrome
+- Edge
+- Firefox
+- Safari
+
+Mobile browsers are best-effort only. Because the app depends on IndexedDB, `Blob` storage, and browser-managed audio playback, quota limits and playback policies can still vary by browser version and device.
+
+If you find a browser-specific issue, open a bug report and include the exact browser version and operating system.
+
 ## Deployment
 
 This repository is configured for Cloudflare Workers using OpenNext.
@@ -118,9 +141,12 @@ Important:
 app/                         Next.js App Router entry points
 components/soundboard/       UI components for boards, pads, settings, and inspector
 lib/soundboard/              IndexedDB, audio playback, defaults, types, and validation
+.github/                     CI workflow, issue forms, and PR template
 tests/components/            Component-level tests
 tests/lib/                   Unit tests for local soundboard modules
+docs/assets/                 README preview images
 docs/architecture.md         Public architecture and persistence overview
+CONTRIBUTING.md              Contribution workflow and review expectations
 wrangler.jsonc               Cloudflare Workers configuration
 open-next.config.ts          OpenNext configuration
 ```
@@ -163,6 +189,8 @@ Recommended flow:
 5. Push `main` to trigger the production Cloudflare deployment flow
 
 Please keep changes focused and update tests or documentation when behavior changes.
+
+For the full contributor workflow, see `CONTRIBUTING.md`.
 
 ## License
 
