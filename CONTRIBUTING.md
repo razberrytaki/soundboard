@@ -45,7 +45,7 @@ If your change touches docs only, still verify the commands that are relevant to
 ## UI and UX Changes
 
 - Preserve the existing visual language unless the change is intentionally redesigning a specific area
-- If you change the UI materially, update the README preview images or include fresh screenshots in your PR
+- If you change the UI materially, update the README screenshots or include fresh screenshots in your PR
 - Document browser-specific behavior when a change depends on IndexedDB, media playback, or file handling
 
 ## Pull Request Expectations

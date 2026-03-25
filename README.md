@@ -17,13 +17,13 @@ The project is currently built with Next.js and deployed to Cloudflare Workers t
 
 ## Screenshots
 
-Board view preview:
+Board view:
 
-![Soundboard board view preview](docs/assets/board-preview.svg)
+![Soundboard board view](docs/assets/board-preview.png)
 
-Empty workspace preview:
+Empty workspace:
 
-![Soundboard empty workspace preview](docs/assets/empty-workspace-preview.svg)
+![Soundboard empty workspace](docs/assets/empty-workspace.png)
 
 ## Tech Stack
 
@@ -144,7 +144,7 @@ lib/soundboard/              IndexedDB, audio playback, defaults, types, and val
 .github/                     CI workflow, issue forms, and PR template
 tests/components/            Component-level tests
 tests/lib/                   Unit tests for local soundboard modules
-docs/assets/                 README preview images
+docs/assets/                 README screenshots
 docs/architecture.md         Public architecture and persistence overview
 CONTRIBUTING.md              Contribution workflow and review expectations
 wrangler.jsonc               Cloudflare Workers configuration
