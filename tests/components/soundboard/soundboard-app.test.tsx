@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SoundboardApp } from "@/components/soundboard/soundboard-app";
 import type {
@@ -9,6 +10,15 @@ import type {
   SoundboardRepository,
   SoundboardSettings,
 } from "@/lib/soundboard/types";
+
+const audioOutputSupport = vi.hoisted(() => ({
+  supported: true,
+}));
+
+vi.mock("@/lib/soundboard/audio-output", () => ({
+  supportsAudioOutputSelection: () => audioOutputSupport.supported,
+  supportsAudioOutputRouting: () => true,
+}));
 
 function createRepositoryFixture({
   boards,
@@ -158,7 +168,290 @@ function createPad(overrides: Partial<SoundboardPad>): SoundboardPad {
   };
 }
 
+afterEach(() => {
+  audioOutputSupport.supported = true;
+  vi.clearAllMocks();
+});
+
 describe("SoundboardApp", () => {
+  it("opens and closes the settings dialog", async () => {
+    const user = userEvent.setup();
+    const repository = createRepositoryFixture({
+      boards: [
+        {
+          id: "board-1",
+          name: "Stream",
+          order: 1,
+          createdAt: "2026-03-24T00:00:00.000Z",
+          updatedAt: "2026-03-24T00:00:00.000Z",
+        },
+      ],
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await user.click(await screen.findByRole("button", { name: /settings/i }));
+
+    expect(await screen.findByRole("dialog", { name: /settings/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /close settings/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: /settings/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it("saves a default pad volume change from the settings dialog", async () => {
+    const user = userEvent.setup();
+    const repository = createRepositoryFixture({
+      boards: [
+        {
+          id: "board-1",
+          name: "Stream",
+          order: 1,
+          createdAt: "2026-03-24T00:00:00.000Z",
+          updatedAt: "2026-03-24T00:00:00.000Z",
+        },
+      ],
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+        defaultPadVolume: 100,
+        showStopAllButton: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await user.click(await screen.findByRole("button", { name: /settings/i }));
+    fireEvent.change(screen.getByRole("slider", { name: /default pad volume/i }), {
+      target: { value: "35" },
+    });
+
+    await waitFor(() => {
+      expect(repository.updateSettings).toHaveBeenCalledWith({ defaultPadVolume: 35 });
+    });
+  });
+
+  it("toggles allow concurrent playback from the settings dialog", async () => {
+    const user = userEvent.setup();
+    const repository = createRepositoryFixture({
+      boards: [
+        {
+          id: "board-1",
+          name: "Stream",
+          order: 1,
+          createdAt: "2026-03-24T00:00:00.000Z",
+          updatedAt: "2026-03-24T00:00:00.000Z",
+        },
+      ],
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await user.click(await screen.findByRole("button", { name: /settings/i }));
+    await user.click(screen.getByRole("checkbox", { name: /allow concurrent playback/i }));
+
+    await waitFor(() => {
+      expect(repository.updateSettings).toHaveBeenCalledWith({
+        allowConcurrentPlayback: false,
+      });
+    });
+    expect(player.setAllowConcurrentPlayback).toHaveBeenCalledWith(false);
+  });
+
+  it("toggles show stop all button from the settings dialog", async () => {
+    const user = userEvent.setup();
+    const repository = createRepositoryFixture({
+      boards: [
+        {
+          id: "board-1",
+          name: "Stream",
+          order: 1,
+          createdAt: "2026-03-24T00:00:00.000Z",
+          updatedAt: "2026-03-24T00:00:00.000Z",
+        },
+      ],
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+        showStopAllButton: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await user.click(await screen.findByRole("button", { name: /settings/i }));
+    await user.click(screen.getByRole("checkbox", { name: /show stop all button/i }));
+
+    await waitFor(() => {
+      expect(repository.updateSettings).toHaveBeenCalledWith({
+        showStopAllButton: false,
+      });
+    });
+  });
+
+  it("shows the unsupported browser explanation for audio output selection", async () => {
+    audioOutputSupport.supported = false;
+
+    const repository = createRepositoryFixture({
+      boards: [
+        {
+          id: "board-1",
+          name: "Stream",
+          order: 1,
+          createdAt: "2026-03-24T00:00:00.000Z",
+          updatedAt: "2026-03-24T00:00:00.000Z",
+        },
+      ],
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /settings/i }));
+
+    expect(
+      await screen.findByText(/audio output selection is not supported in this browser/i),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the stop all button only when enabled", async () => {
+    const enabledRepository = createRepositoryFixture({
+      boards: [
+        {
+          id: "board-1",
+          name: "Stream",
+          order: 1,
+          createdAt: "2026-03-24T00:00:00.000Z",
+          updatedAt: "2026-03-24T00:00:00.000Z",
+        },
+      ],
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+        showStopAllButton: true,
+      },
+    });
+    const disabledRepository = createRepositoryFixture({
+      boards: [
+        {
+          id: "board-1",
+          name: "Stream",
+          order: 1,
+          createdAt: "2026-03-24T00:00:00.000Z",
+          updatedAt: "2026-03-24T00:00:00.000Z",
+        },
+      ],
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+        showStopAllButton: false,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    const { unmount } = render(
+      <SoundboardApp repository={enabledRepository} player={player} />,
+    );
+
+    expect(await screen.findByRole("button", { name: /stop all/i })).toBeInTheDocument();
+
+    unmount();
+    render(<SoundboardApp repository={disabledRepository} player={player} />);
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /stop all/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it("calls stopAll from the header button", async () => {
+    const user = userEvent.setup();
+    const repository = createRepositoryFixture({
+      boards: [
+        {
+          id: "board-1",
+          name: "Stream",
+          order: 1,
+          createdAt: "2026-03-24T00:00:00.000Z",
+          updatedAt: "2026-03-24T00:00:00.000Z",
+        },
+      ],
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+        showStopAllButton: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await user.click(await screen.findByRole("button", { name: /stop all/i }));
+
+    expect(player.stopAll).toHaveBeenCalledTimes(1);
+  });
+
   it("restores the active board and renders its pads", async () => {
     const boards: SoundboardBoard[] = [
       {
@@ -1393,39 +1686,4 @@ describe("SoundboardApp", () => {
     });
   });
 
-  it("toggles concurrent playback from settings", async () => {
-    const user = userEvent.setup();
-    const boards: SoundboardBoard[] = [
-      {
-        id: "board-1",
-        name: "Stream",
-        order: 1,
-        createdAt: "2026-03-24T00:00:00.000Z",
-        updatedAt: "2026-03-24T00:00:00.000Z",
-      },
-    ];
-    const repository = createRepositoryFixture({
-      boards,
-      padsByBoardId: {},
-      settings: {
-        activeBoardId: "board-1",
-        allowConcurrentPlayback: true,
-      },
-    });
-    const player = {
-      play: vi.fn(async () => undefined),
-      setAllowConcurrentPlayback: vi.fn(),
-      getActiveCount: vi.fn(() => 0),
-      stopAll: vi.fn(),
-    };
-
-    render(<SoundboardApp repository={repository} player={player} />);
-
-    await user.click(await screen.findByRole("checkbox", { name: /allow concurrent playback/i }));
-
-    expect(repository.updateSettings).toHaveBeenCalledWith({
-      allowConcurrentPlayback: false,
-    });
-    expect(player.setAllowConcurrentPlayback).toHaveBeenCalledWith(false);
-  });
 });

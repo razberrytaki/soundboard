@@ -5,8 +5,9 @@ import { useEffect, useState } from "react";
 import { BoardSidebar } from "@/components/soundboard/board-sidebar";
 import { PadEditor } from "@/components/soundboard/pad-editor";
 import { PadGrid } from "@/components/soundboard/pad-grid";
-import { SettingsPanel } from "@/components/soundboard/settings-panel";
+import { SettingsDialog } from "@/components/soundboard/settings-dialog";
 import { createAudioPlayer } from "@/lib/soundboard/audio-player";
+import { supportsAudioOutputSelection } from "@/lib/soundboard/audio-output";
 import { createSoundboardDb } from "@/lib/soundboard/db";
 import type {
   SoundboardBoard,
@@ -57,12 +58,14 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     boardId: string;
     draftName: string;
   } | null>(null);
+  const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [editorState, setEditorState] = useState<
     { mode: "create" } | { mode: "edit"; padId: string } | null
   >(null);
   const [createEditorVersion, setCreateEditorVersion] = useState(0);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [audioOutputSupported] = useState(() => supportsAudioOutputSelection());
 
   useEffect(() => {
     let cancelled = false;
@@ -129,6 +132,14 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     setEditorState(null);
   };
 
+  const updateSettings = async (patch: Partial<SoundboardSettings>) => {
+    const nextSettings = await repositoryInstance.updateSettings(patch);
+
+    setSettings(nextSettings);
+
+    return nextSettings;
+  };
+
   const requestEditorStateChange = (
     nextState: { mode: "create" } | { mode: "edit"; padId: string },
   ) => {
@@ -164,12 +175,11 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     setActiveBoardId(boardId);
     setBoardEditorState(null);
     resetPadEditor();
-    const nextSettings = await repositoryInstance.updateSettings({
+    await updateSettings({
       activeBoardId: boardId,
     });
     const nextPads = await repositoryInstance.listPads(boardId);
 
-    setSettings(nextSettings);
     setPads(nextPads);
   };
 
@@ -178,15 +188,14 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     const nextBoard = await repositoryInstance.createBoard({
       name: fallbackName,
     });
-    const [nextSettings, nextBoards] = await Promise.all([
-      repositoryInstance.updateSettings({
+    const [, nextBoards] = await Promise.all([
+      updateSettings({
         activeBoardId: nextBoard.id,
       }),
       repositoryInstance.listBoards(),
     ]);
 
     setBoards(nextBoards);
-    setSettings(nextSettings);
     setActiveBoardId(nextBoard.id);
     setPads([]);
     resetPadEditor();
@@ -381,12 +390,23 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
   };
 
   const handleConcurrentPlaybackToggle = async (value: boolean) => {
-    const nextSettings = await repositoryInstance.updateSettings({
+    await updateSettings({
       allowConcurrentPlayback: value,
     });
 
-    setSettings(nextSettings);
     playerInstance.setAllowConcurrentPlayback(value);
+  };
+
+  const handleDefaultPadVolumeChange = async (value: number) => {
+    await updateSettings({
+      defaultPadVolume: value,
+    });
+  };
+
+  const handleShowStopAllButtonChange = async (value: boolean) => {
+    await updateSettings({
+      showStopAllButton: value,
+    });
   };
 
   const handlePlay = async (pad: SoundboardPad) => {
@@ -531,10 +551,22 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <SettingsPanel
-                allowConcurrentPlayback={settings?.allowConcurrentPlayback ?? true}
-                onToggle={(value) => void handleConcurrentPlaybackToggle(value)}
-              />
+              {settings?.showStopAllButton ? (
+                <button
+                  className="rounded-full border border-[var(--color-line)] px-4 py-3 text-sm font-medium text-[var(--color-ink)] transition-colors duration-200 hover:bg-white/70"
+                  onClick={() => playerInstance.stopAll()}
+                  type="button"
+                >
+                  Stop All
+                </button>
+              ) : null}
+              <button
+                className="rounded-full border border-[var(--color-line)] px-4 py-3 text-sm font-medium text-[var(--color-ink)] transition-colors duration-200 hover:bg-white/70"
+                onClick={() => setIsSettingsDialogOpen(true)}
+                type="button"
+              >
+                Settings
+              </button>
               <button
                 className="rounded-full bg-[var(--color-ink)] px-4 py-3 text-sm font-medium text-[var(--color-paper)] transition-transform duration-200 hover:-translate-y-0.5"
                 onClick={() => requestEditorStateChange({ mode: "create" })}
@@ -544,6 +576,28 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
               </button>
             </div>
           </header>
+
+          <SettingsDialog
+            audioOutputSupported={audioOutputSupported}
+            open={isSettingsDialogOpen}
+            onAllowConcurrentPlaybackChange={(value) =>
+              void handleConcurrentPlaybackToggle(value)
+            }
+            onClose={() => setIsSettingsDialogOpen(false)}
+            onDefaultPadVolumeChange={(value) =>
+              void handleDefaultPadVolumeChange(value)
+            }
+            onShowStopAllButtonChange={(value) =>
+              void handleShowStopAllButtonChange(value)
+            }
+            settings={{
+              allowConcurrentPlayback: settings?.allowConcurrentPlayback ?? true,
+              defaultPadVolume: settings?.defaultPadVolume ?? 100,
+              preferredOutputDeviceLabel:
+                settings?.preferredOutputDeviceLabel ?? null,
+              showStopAllButton: settings?.showStopAllButton ?? true,
+            }}
+          />
 
           <div className="grid gap-6 px-5 py-5 md:grid-cols-[minmax(0,1fr)_320px] md:px-8 md:py-7">
             <PadGrid
