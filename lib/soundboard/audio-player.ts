@@ -1,9 +1,13 @@
+import { supportsAudioOutputRouting } from "@/lib/soundboard/audio-output";
+
 type AudioLike = {
   currentTime: number;
+  volume: number;
   play(): Promise<void> | void;
   pause(): void;
   addEventListener(type: "ended" | "error", listener: () => void): void;
   removeEventListener(type: "ended" | "error", listener: () => void): void;
+  setSinkId?: (sinkId: string) => Promise<void>;
 };
 
 type CreateAudioPlayerOptions = {
@@ -11,6 +15,11 @@ type CreateAudioPlayerOptions = {
   createAudio?: (src: string) => AudioLike;
   createObjectUrl?: (blob: Blob) => string;
   revokeObjectUrl?: (url: string) => void;
+};
+
+type PlaybackOptions = {
+  volume: number;
+  outputDeviceId?: string | null;
 };
 
 type ActiveEntry = {
@@ -25,6 +34,10 @@ function defaultCreateAudio(src: string) {
 
   audio.preload = "auto";
   return audio;
+}
+
+function normalizeVolume(volume: number) {
+  return Math.min(1, Math.max(0, volume / 100));
 }
 
 export function createAudioPlayer(options: CreateAudioPlayerOptions = {}) {
@@ -54,7 +67,7 @@ export function createAudioPlayer(options: CreateAudioPlayerOptions = {}) {
   };
 
   return {
-    async play(blob: Blob) {
+    async play(blob: Blob, playbackOptions: PlaybackOptions = { volume: 100 }) {
       if (!allowConcurrentPlayback) {
         for (const id of [...active.keys()]) {
           cleanup(id, true);
@@ -74,6 +87,17 @@ export function createAudioPlayer(options: CreateAudioPlayerOptions = {}) {
       audio.addEventListener("ended", entry.onEnded);
       audio.addEventListener("error", entry.onError);
       active.set(id, entry);
+      audio.volume = normalizeVolume(playbackOptions.volume);
+
+      const outputDeviceId = playbackOptions.outputDeviceId ?? null;
+
+      if (outputDeviceId && supportsAudioOutputRouting(audio)) {
+        try {
+          await audio.setSinkId(outputDeviceId);
+        } catch {
+          // Keep playing on the default output device when sink routing fails.
+        }
+      }
 
       try {
         await audio.play();

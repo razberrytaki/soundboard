@@ -8,10 +8,12 @@ type Listener = () => void;
 
 class FakeAudio {
   currentTime = 0;
+  volume = 1;
   paused = false;
   playCalls = 0;
   playError: Error | null = null;
   src: string;
+  setSinkId?: (sinkId: string) => Promise<void>;
 
   private readonly listeners = new Map<string, Set<Listener>>();
 
@@ -113,6 +115,114 @@ describe("createAudioPlayer", () => {
     expect(createdAudio[0]?.playCalls).toBe(1);
     expect(player.getActiveCount()).toBe(1);
     expect(revokedUrls).toHaveLength(0);
+  });
+
+  it("applies playback volume before starting playback", async () => {
+    const createdAudio: FakeAudio[] = [];
+    const player = createAudioPlayer({
+      createObjectUrl: () => "blob:volume",
+      revokeObjectUrl: () => undefined,
+      createAudio: (src) => {
+        const audio = new FakeAudio(src);
+
+        audio.play = async () => {
+          audio.playCalls += 1;
+          expect(audio.volume).toBe(0.35);
+        };
+        createdAudio.push(audio);
+        return audio;
+      },
+    });
+
+    await player.play(new Blob(["a"], { type: "audio/mpeg" }), {
+      volume: 35,
+    });
+
+    expect(createdAudio[0]?.volume).toBe(0.35);
+    expect(createdAudio[0]?.playCalls).toBe(1);
+  });
+
+  it("calls setSinkId before playback when supported", async () => {
+    const createdAudio: FakeAudio[] = [];
+    const player = createAudioPlayer({
+      createObjectUrl: () => "blob:sink",
+      revokeObjectUrl: () => undefined,
+      createAudio: (src) => {
+        const audio = new FakeAudio(src);
+
+        audio.setSinkId = vi.fn(async (sinkId: string) => {
+          expect(sinkId).toBe("speaker-1");
+        });
+        audio.play = async () => {
+          audio.playCalls += 1;
+          expect(audio.setSinkId).toHaveBeenCalledTimes(1);
+        };
+        createdAudio.push(audio);
+        return audio;
+      },
+    });
+
+    await player.play(new Blob(["a"], { type: "audio/mpeg" }), {
+      volume: 100,
+      outputDeviceId: "speaker-1",
+    });
+
+    expect(createdAudio[0]?.playCalls).toBe(1);
+    expect(createdAudio[0]?.setSinkId).toHaveBeenCalledWith("speaker-1");
+  });
+
+  it("continues playback when setSinkId is unsupported", async () => {
+    const createdAudio: FakeAudio[] = [];
+    const player = createAudioPlayer({
+      createObjectUrl: () => "blob:unsupported-sink",
+      revokeObjectUrl: () => undefined,
+      createAudio: (src) => {
+        const audio = new FakeAudio(src);
+
+        audio.play = async () => {
+          audio.playCalls += 1;
+        };
+        createdAudio.push(audio);
+        return audio;
+      },
+    });
+
+    await player.play(new Blob(["a"], { type: "audio/mpeg" }), {
+      volume: 100,
+      outputDeviceId: "speaker-1",
+    });
+
+    expect(createdAudio[0]?.playCalls).toBe(1);
+    expect(player.getActiveCount()).toBe(1);
+  });
+
+  it("continues playback when setSinkId rejects", async () => {
+    const createdAudio: FakeAudio[] = [];
+    const player = createAudioPlayer({
+      createObjectUrl: () => "blob:rejected-sink",
+      revokeObjectUrl: () => undefined,
+      createAudio: (src) => {
+        const audio = new FakeAudio(src);
+
+        audio.setSinkId = vi.fn(async () => {
+          throw new Error("sink rejected");
+        });
+        audio.play = async () => {
+          audio.playCalls += 1;
+        };
+        createdAudio.push(audio);
+        return audio;
+      },
+    });
+
+    await player.play(new Blob(["a"], { type: "audio/mpeg" }), {
+      volume: 100,
+      outputDeviceId: "speaker-1",
+    });
+
+    expect(createdAudio[0]?.playCalls).toBe(1);
+    expect(createdAudio[0]?.setSinkId).toHaveBeenCalledWith("speaker-1");
+    expect(player.getActiveCount()).toBe(1);
   });
 
   it("allows multiple active sounds when concurrent playback is enabled", async () => {
