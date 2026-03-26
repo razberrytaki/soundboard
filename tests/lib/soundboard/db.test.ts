@@ -251,7 +251,7 @@ describe("createSoundboardDb", () => {
     legacyDatabase.close();
 
     const db = createSoundboardDb(name);
-    await db.getSettings();
+    await db.listBoards();
 
     const upgradedDatabase = await openRawDatabase(name);
     const migratedSettings = await readRecord<{
