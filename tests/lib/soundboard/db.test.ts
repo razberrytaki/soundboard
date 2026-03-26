@@ -135,14 +135,37 @@ describe("createSoundboardDb", () => {
     expect(pads.map((pad) => pad.label)).toEqual(["Airhorn", "Clap"]);
   });
 
-  it("updates global playback settings", async () => {
-    const db = createSoundboardDb(makeDbName());
+  it("persists and returns the full expanded global settings shape", async () => {
+    const name = makeDbName();
+    const db = createSoundboardDb(name);
 
-    await db.updateSettings({ allowConcurrentPlayback: false });
+    const updatedSettings = await db.updateSettings({
+      allowConcurrentPlayback: false,
+      defaultPadVolume: 72,
+      showStopAllButton: false,
+      preferredOutputDeviceId: "device-1",
+      preferredOutputDeviceLabel: "Desk Speakers",
+    });
 
-    const settings = await db.getSettings();
+    expect(updatedSettings).toEqual({
+      activeBoardId: null,
+      allowConcurrentPlayback: false,
+      defaultPadVolume: 72,
+      showStopAllButton: false,
+      preferredOutputDeviceId: "device-1",
+      preferredOutputDeviceLabel: "Desk Speakers",
+    });
 
-    expect(settings.allowConcurrentPlayback).toBe(false);
+    const reopenedSettings = await createSoundboardDb(name).getSettings();
+
+    expect(reopenedSettings).toEqual({
+      activeBoardId: null,
+      allowConcurrentPlayback: false,
+      defaultPadVolume: 72,
+      showStopAllButton: false,
+      preferredOutputDeviceId: "device-1",
+      preferredOutputDeviceLabel: "Desk Speakers",
+    });
   });
 
   it("hydrates legacy settings records with the new defaults", async () => {
