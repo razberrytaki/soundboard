@@ -132,6 +132,22 @@ function getNextActiveBoardId(
   );
 }
 
+function nextTimestamp(previous?: string) {
+  const now = Date.now();
+
+  if (!previous) {
+    return new Date(now).toISOString();
+  }
+
+  const previousTime = Date.parse(previous);
+
+  if (Number.isNaN(previousTime)) {
+    return new Date(now).toISOString();
+  }
+
+  return new Date(Math.max(now, previousTime + 1)).toISOString();
+}
+
 export function createSoundboardDb(name = "soundboard"): SoundboardRepository {
   let databasePromise: Promise<IDBDatabase> | undefined;
 
@@ -147,12 +163,13 @@ export function createSoundboardDb(name = "soundboard"): SoundboardRepository {
     async createBoard(input: CreateBoardInput) {
       const database = await getDatabase();
       const existingBoards = await this.listBoards();
+      const now = nextTimestamp();
       const board: SoundboardBoard = {
         id: crypto.randomUUID(),
         name: input.name,
         order: existingBoards.length + 1,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
       };
 
       const transaction = database.transaction(
@@ -195,7 +212,7 @@ export function createSoundboardDb(name = "soundboard"): SoundboardRepository {
       const nextBoard: SoundboardBoard = {
         ...existing,
         name: input.name,
-        updatedAt: new Date().toISOString(),
+        updatedAt: nextTimestamp(existing.updatedAt),
       };
 
       store.put(nextBoard);
@@ -295,13 +312,13 @@ export function createSoundboardDb(name = "soundboard"): SoundboardRepository {
       const database = await getDatabase();
       const transaction = database.transaction(PADS_STORE, "readwrite");
       const store = transaction.objectStore(PADS_STORE);
-      const now = new Date().toISOString();
       const existing =
         input.id === undefined
           ? undefined
           : await requestToPromise(
               store.get(input.id) as IDBRequest<SoundboardPad | undefined>,
             );
+      const now = nextTimestamp(existing?.updatedAt);
       const pad: SoundboardPad = {
         id: input.id ?? crypto.randomUUID(),
         boardId: input.boardId,
