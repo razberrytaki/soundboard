@@ -225,6 +225,52 @@ describe("createAudioPlayer", () => {
     expect(player.getActiveCount()).toBe(1);
   });
 
+  it("does not start playback if cleanup happens while sink routing is pending", async () => {
+    const createdAudio: FakeAudio[] = [];
+    let resolveSinkId: (() => void) | null = null;
+    let resolveSinkStarted: (() => void) | null = null;
+    const sinkStarted = new Promise<void>((resolve) => {
+      resolveSinkStarted = resolve;
+    });
+
+    const player = createAudioPlayer({
+      createObjectUrl: () => "blob:pending-sink",
+      revokeObjectUrl: () => undefined,
+      createAudio: (src) => {
+        const audio = new FakeAudio(src);
+
+        audio.setSinkId = vi.fn(
+          () =>
+            new Promise<void>((resolve) => {
+              resolveSinkStarted?.();
+              resolveSinkId = resolve;
+            }),
+        );
+        audio.play = async () => {
+          audio.playCalls += 1;
+        };
+        createdAudio.push(audio);
+        return audio;
+      },
+    });
+
+    const playPromise = player.play(new Blob(["a"], { type: "audio/mpeg" }), {
+      volume: 100,
+      outputDeviceId: "speaker-1",
+    });
+
+    await sinkStarted;
+    player.stopAll();
+    if (resolveSinkId) {
+      (resolveSinkId as () => void)();
+    }
+
+    await playPromise;
+
+    expect(createdAudio[0]?.playCalls).toBe(0);
+    expect(player.getActiveCount()).toBe(0);
+  });
+
   it("allows multiple active sounds when concurrent playback is enabled", async () => {
     const createdAudio: FakeAudio[] = [];
     const player = createAudioPlayer({

@@ -99,6 +99,10 @@ export function createAudioPlayer(options: CreateAudioPlayerOptions = {}) {
         }
       }
 
+      if (!active.has(id)) {
+        return;
+      }
+
       try {
         await audio.play();
       } catch (error) {
