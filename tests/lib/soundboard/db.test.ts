@@ -25,6 +25,35 @@ async function openRawDatabase(name: string) {
   });
 }
 
+async function openLegacyV1Database(name: string) {
+  return await new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(name, 1);
+
+    request.onupgradeneeded = () => {
+      const database = request.result;
+
+      if (!database.objectStoreNames.contains("boards")) {
+        database.createObjectStore("boards", { keyPath: "id" });
+      }
+
+      if (!database.objectStoreNames.contains("pads")) {
+        const padsStore = database.createObjectStore("pads", {
+          keyPath: "id",
+        });
+
+        padsStore.createIndex("boardId", "boardId", { unique: false });
+      }
+
+      if (!database.objectStoreNames.contains("settings")) {
+        database.createObjectStore("settings", { keyPath: "key" });
+      }
+    };
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
 describe("createSoundboardDb", () => {
   it("creates the first board and restores it as active", async () => {
     const db = createSoundboardDb(makeDbName());
@@ -168,31 +197,57 @@ describe("createSoundboardDb", () => {
     });
   });
 
-  it("hydrates legacy settings records with the new defaults", async () => {
+  it("migrates legacy v1 records to the expanded settings and pad shape", async () => {
     const name = makeDbName();
-    const db = createSoundboardDb(name);
-    const board = await db.createBoard({ name: "Stream" });
-    const rawDatabase = await openRawDatabase(name);
-    const transaction = rawDatabase.transaction("settings", "readwrite");
+    const legacyDatabase = await openLegacyV1Database(name);
+    const boardId = crypto.randomUUID();
+    const padId = crypto.randomUUID();
+    const transaction = legacyDatabase.transaction(
+      ["boards", "pads", "settings"],
+      "readwrite",
+    );
 
+    transaction.objectStore("boards").put({
+      id: boardId,
+      name: "Stream",
+      order: 1,
+      createdAt: "2026-03-24T00:00:00.000Z",
+      updatedAt: "2026-03-24T00:00:00.000Z",
+    });
+    transaction.objectStore("pads").put({
+      id: padId,
+      boardId,
+      label: "Clap",
+      color: "#34645e",
+      order: 1,
+      audioBlob: new Blob(["legacy"], { type: "audio/mpeg" }),
+      audioName: "clap.mp3",
+      mimeType: "audio/mpeg",
+      createdAt: "2026-03-24T00:00:01.000Z",
+      updatedAt: "2026-03-24T00:00:01.000Z",
+    });
     transaction.objectStore("settings").put({
       key: "app",
-      activeBoardId: board.id,
+      activeBoardId: boardId,
       allowConcurrentPlayback: false,
     });
     await transactionDone(transaction);
-    rawDatabase.close();
+    legacyDatabase.close();
 
-    const migratedSettings = await createSoundboardDb(name).getSettings();
+    const db = createSoundboardDb(name);
+    const migratedSettings = await db.getSettings();
+    const migratedPads = await db.listPads(boardId);
 
     expect(migratedSettings).toEqual({
-      activeBoardId: board.id,
+      activeBoardId: boardId,
       allowConcurrentPlayback: false,
       defaultPadVolume: 100,
       showStopAllButton: true,
       preferredOutputDeviceId: null,
       preferredOutputDeviceLabel: null,
     });
+    expect(migratedPads).toHaveLength(1);
+    expect(migratedPads[0]?.volumeOverride).toBeNull();
   });
 
   it("returns default settings before any records exist", async () => {
@@ -242,7 +297,7 @@ describe("createSoundboardDb", () => {
       audioName: "airhorn.mp3",
       mimeType: "audio/mpeg",
       volumeOverride: 35,
-    } as any);
+    });
 
     expect(created.volumeOverride).toBe(35);
 
@@ -258,13 +313,12 @@ describe("createSoundboardDb", () => {
       audioBlob: new Blob(["c"], { type: "audio/mpeg" }),
       audioName: "airhorn.mp3",
       mimeType: "audio/mpeg",
-      volumeOverride: null,
-    } as any);
+    });
 
-    expect(updated.volumeOverride).toBeNull();
+    expect(updated.volumeOverride).toBe(35);
 
     const updatedPads = await db.listPads(board.id);
-    expect(updatedPads[0]?.volumeOverride).toBeNull();
+    expect(updatedPads[0]?.volumeOverride).toBe(35);
   });
 
   it("renames a board and refreshes its updated timestamp", async () => {
