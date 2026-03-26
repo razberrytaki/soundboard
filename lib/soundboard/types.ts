@@ -15,6 +15,7 @@ export type SoundboardPad = {
   audioBlob: Blob;
   audioName: string;
   mimeType: string;
+  volumeOverride: number | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -22,6 +23,10 @@ export type SoundboardPad = {
 export type SoundboardSettings = {
   activeBoardId: string | null;
   allowConcurrentPlayback: boolean;
+  defaultPadVolume: number;
+  showStopAllButton: boolean;
+  preferredOutputDeviceId: string | null;
+  preferredOutputDeviceLabel: string | null;
 };
 
 export type CreateBoardInput = {
@@ -42,6 +47,7 @@ export type SavePadInput = {
   audioBlob: Blob;
   audioName: string;
   mimeType: string;
+  volumeOverride?: number | null;
 };
 
 export type UpdateSettingsInput = Partial<SoundboardSettings>;

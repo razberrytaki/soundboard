@@ -145,6 +145,33 @@ describe("createSoundboardDb", () => {
     expect(settings.allowConcurrentPlayback).toBe(false);
   });
 
+  it("hydrates legacy settings records with the new defaults", async () => {
+    const name = makeDbName();
+    const db = createSoundboardDb(name);
+    const board = await db.createBoard({ name: "Stream" });
+    const rawDatabase = await openRawDatabase(name);
+    const transaction = rawDatabase.transaction("settings", "readwrite");
+
+    transaction.objectStore("settings").put({
+      key: "app",
+      activeBoardId: board.id,
+      allowConcurrentPlayback: false,
+    });
+    await transactionDone(transaction);
+    rawDatabase.close();
+
+    const migratedSettings = await createSoundboardDb(name).getSettings();
+
+    expect(migratedSettings).toEqual({
+      activeBoardId: board.id,
+      allowConcurrentPlayback: false,
+      defaultPadVolume: 100,
+      showStopAllButton: true,
+      preferredOutputDeviceId: null,
+      preferredOutputDeviceLabel: null,
+    });
+  });
+
   it("returns default settings before any records exist", async () => {
     const db = createSoundboardDb(makeDbName());
 
@@ -153,7 +180,68 @@ describe("createSoundboardDb", () => {
     expect(settings).toEqual({
       activeBoardId: null,
       allowConcurrentPlayback: true,
+      defaultPadVolume: 100,
+      showStopAllButton: true,
+      preferredOutputDeviceId: null,
+      preferredOutputDeviceLabel: null,
     });
+  });
+
+  it("defaults missing pad volume overrides to null", async () => {
+    const db = createSoundboardDb(makeDbName());
+    const board = await db.createBoard({ name: "Memes" });
+
+    await db.savePad({
+      boardId: board.id,
+      label: "Clap",
+      color: "#34645e",
+      order: 1,
+      audioBlob: new Blob(["b"], { type: "audio/mpeg" }),
+      audioName: "clap.mp3",
+      mimeType: "audio/mpeg",
+    });
+
+    const pads = await db.listPads(board.id);
+
+    expect(pads[0]?.volumeOverride).toBeNull();
+  });
+
+  it("preserves pad volume overrides on create and update", async () => {
+    const db = createSoundboardDb(makeDbName());
+    const board = await db.createBoard({ name: "Memes" });
+
+    const created = await db.savePad({
+      boardId: board.id,
+      label: "Airhorn",
+      color: "#d95b43",
+      order: 2,
+      audioBlob: new Blob(["a"], { type: "audio/mpeg" }),
+      audioName: "airhorn.mp3",
+      mimeType: "audio/mpeg",
+      volumeOverride: 35,
+    } as any);
+
+    expect(created.volumeOverride).toBe(35);
+
+    const createdPads = await db.listPads(board.id);
+    expect(createdPads[0]?.volumeOverride).toBe(35);
+
+    const updated = await db.savePad({
+      id: created.id,
+      boardId: board.id,
+      label: "Airhorn",
+      color: "#d95b43",
+      order: 2,
+      audioBlob: new Blob(["c"], { type: "audio/mpeg" }),
+      audioName: "airhorn.mp3",
+      mimeType: "audio/mpeg",
+      volumeOverride: null,
+    } as any);
+
+    expect(updated.volumeOverride).toBeNull();
+
+    const updatedPads = await db.listPads(board.id);
+    expect(updatedPads[0]?.volumeOverride).toBeNull();
   });
 
   it("renames a board and refreshes its updated timestamp", async () => {

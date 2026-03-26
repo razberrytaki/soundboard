@@ -10,7 +10,7 @@ import type {
   UpdateSettingsInput,
 } from "@/lib/soundboard/types";
 
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 const BOARDS_STORE = "boards";
 const PADS_STORE = "pads";
 const SETTINGS_STORE = "settings";
@@ -20,12 +20,36 @@ type SettingsRecord = SoundboardSettings & {
   key: typeof SETTINGS_KEY;
 };
 
+function normalizeSettingsRecord(
+  record: Partial<SoundboardSettings> | undefined,
+): SettingsRecord {
+  return {
+    key: SETTINGS_KEY,
+    ...defaultSoundboardSettings,
+    ...(record ?? {}),
+  };
+}
+
+function normalizePadRecord(record: SoundboardPad): SoundboardPad {
+  return {
+    ...record,
+    volumeOverride: record.volumeOverride ?? null,
+  };
+}
+
+function toPublicSettings(record: SettingsRecord): SoundboardSettings {
+  const { key: _key, ...settings } = record;
+
+  return settings;
+}
+
 function openDatabase(name: string) {
   return new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(name, DATABASE_VERSION);
 
     request.onupgradeneeded = () => {
       const database = request.result;
+      const transaction = request.transaction;
 
       if (!database.objectStoreNames.contains(BOARDS_STORE)) {
         database.createObjectStore(BOARDS_STORE, { keyPath: "id" });
@@ -41,6 +65,32 @@ function openDatabase(name: string) {
 
       if (!database.objectStoreNames.contains(SETTINGS_STORE)) {
         database.createObjectStore(SETTINGS_STORE, { keyPath: "key" });
+      }
+
+      if (transaction && request.oldVersion < 2) {
+        const settingsStore = transaction.objectStore(SETTINGS_STORE);
+        const padsStore = transaction.objectStore(PADS_STORE);
+        const settingsRequest = settingsStore.get(SETTINGS_KEY) as IDBRequest<
+          SettingsRecord | undefined
+        >;
+        const padsRequest = padsStore.openCursor() as IDBRequest<IDBCursorWithValue | null>;
+
+        settingsRequest.onsuccess = () => {
+          settingsStore.put(
+            normalizeSettingsRecord(settingsRequest.result ?? undefined),
+          );
+        };
+
+        padsRequest.onsuccess = () => {
+          const cursor = padsRequest.result;
+
+          if (!cursor) {
+            return;
+          }
+
+          cursor.update(normalizePadRecord(cursor.value as SoundboardPad));
+          cursor.continue();
+        };
       }
     };
 
@@ -75,26 +125,23 @@ async function readSettings(
   );
 
   if (existing) {
+    const normalized = normalizeSettingsRecord(existing);
+
     if (mode === "readwrite") {
+      store.put(normalized);
       await transactionDone(transaction);
     }
 
-    return existing;
+    return normalized;
   }
 
   if (mode !== "readwrite") {
     transaction.abort();
 
-    return {
-      key: SETTINGS_KEY,
-      ...defaultSoundboardSettings,
-    } satisfies SettingsRecord;
+    return normalizeSettingsRecord(undefined);
   }
 
-  const record = {
-    key: SETTINGS_KEY,
-    ...defaultSoundboardSettings,
-  } satisfies SettingsRecord;
+  const record = normalizeSettingsRecord(undefined);
 
   store.put(record);
   await transactionDone(transaction);
@@ -184,10 +231,10 @@ export function createSoundboardDb(name = "soundboard"): SoundboardRepository {
 
       boardStore.put(board);
 
+      const currentSettings = normalizeSettingsRecord(existingSettings);
       const nextSettings: SettingsRecord = {
-        key: SETTINGS_KEY,
-        ...(existingSettings ?? defaultSoundboardSettings),
-        activeBoardId: existingSettings?.activeBoardId ?? board.id,
+        ...currentSettings,
+        activeBoardId: currentSettings.activeBoardId ?? board.id,
       };
 
       settingsStore.put(nextSettings);
@@ -251,10 +298,7 @@ export function createSoundboardDb(name = "soundboard"): SoundboardRepository {
         padStore.delete(key);
       }
 
-      const currentSettings: SettingsRecord = {
-        key: SETTINGS_KEY,
-        ...(existingSettings ?? defaultSoundboardSettings),
-      };
+      const currentSettings = normalizeSettingsRecord(existingSettings);
       const nextSettings: SettingsRecord = {
         ...currentSettings,
         activeBoardId:
@@ -283,10 +327,7 @@ export function createSoundboardDb(name = "soundboard"): SoundboardRepository {
       const database = await getDatabase();
       const settings = await readSettings(database, "readwrite");
 
-      return {
-        activeBoardId: settings.activeBoardId,
-        allowConcurrentPlayback: settings.allowConcurrentPlayback,
-      } satisfies SoundboardSettings;
+      return toPublicSettings(normalizeSettingsRecord(settings));
     },
 
     async updateSettings(input: UpdateSettingsInput) {
@@ -302,10 +343,7 @@ export function createSoundboardDb(name = "soundboard"): SoundboardRepository {
       store.put(nextSettings);
       await transactionDone(transaction);
 
-      return {
-        activeBoardId: nextSettings.activeBoardId,
-        allowConcurrentPlayback: nextSettings.allowConcurrentPlayback,
-      } satisfies SoundboardSettings;
+      return toPublicSettings(normalizeSettingsRecord(nextSettings));
     },
 
     async savePad(input: SavePadInput) {
@@ -328,6 +366,10 @@ export function createSoundboardDb(name = "soundboard"): SoundboardRepository {
         audioBlob: input.audioBlob,
         audioName: input.audioName,
         mimeType: input.mimeType,
+        volumeOverride:
+          input.volumeOverride === undefined
+            ? existing?.volumeOverride ?? null
+            : input.volumeOverride,
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
       };
@@ -347,13 +389,15 @@ export function createSoundboardDb(name = "soundboard"): SoundboardRepository {
         index.getAll(IDBKeyRange.only(boardId)) as IDBRequest<SoundboardPad[]>,
       );
 
-      return [...pads].sort((left, right) => {
-        if (left.order === right.order) {
-          return left.createdAt.localeCompare(right.createdAt);
-        }
+      return [...pads]
+        .map((pad) => normalizePadRecord(pad))
+        .sort((left, right) => {
+          if (left.order === right.order) {
+            return left.createdAt.localeCompare(right.createdAt);
+          }
 
-        return left.order - right.order;
-      });
+          return left.order - right.order;
+        });
     },
 
     async deletePad(padId: string) {
