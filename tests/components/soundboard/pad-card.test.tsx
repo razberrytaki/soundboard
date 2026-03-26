@@ -14,6 +14,7 @@ function createPad(overrides: Partial<SoundboardPad> = {}): SoundboardPad {
     audioBlob: new Blob(["a"], { type: "audio/mpeg" }),
     audioName: "airhorn.mp3",
     mimeType: "audio/mpeg",
+    volumeOverride: null,
     createdAt: "2026-03-24T00:00:00.000Z",
     updatedAt: "2026-03-24T00:00:00.000Z",
     ...overrides,

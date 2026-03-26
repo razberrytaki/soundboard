@@ -25,6 +25,22 @@ async function openRawDatabase(name: string) {
   });
 }
 
+async function readRecord<T>(database: IDBDatabase, storeName: string, key: IDBValidKey) {
+  const transaction = database.transaction(storeName, "readonly");
+  const record = await new Promise<T | undefined>((resolve, reject) => {
+    const request = transaction.objectStore(storeName).get(key) as IDBRequest<
+      T | undefined
+    >;
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+  await transactionDone(transaction);
+
+  return record;
+}
+
 async function openLegacyV1Database(name: string) {
   return await new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(name, 1);
@@ -235,10 +251,35 @@ describe("createSoundboardDb", () => {
     legacyDatabase.close();
 
     const db = createSoundboardDb(name);
-    const migratedSettings = await db.getSettings();
-    const migratedPads = await db.listPads(boardId);
+    await db.getSettings();
+
+    const upgradedDatabase = await openRawDatabase(name);
+    const migratedSettings = await readRecord<{
+      key: string;
+      activeBoardId: string | null;
+      allowConcurrentPlayback: boolean;
+      defaultPadVolume: number;
+      showStopAllButton: boolean;
+      preferredOutputDeviceId: string | null;
+      preferredOutputDeviceLabel: string | null;
+    }>(upgradedDatabase, "settings", "app");
+    const migratedPad = await readRecord<{
+      id: string;
+      boardId: string;
+      label: string;
+      color: string;
+      order: number;
+      audioBlob: Blob;
+      audioName: string;
+      mimeType: string;
+      volumeOverride: number | null;
+      createdAt: string;
+      updatedAt: string;
+    }>(upgradedDatabase, "pads", padId);
+    upgradedDatabase.close();
 
     expect(migratedSettings).toEqual({
+      key: "app",
       activeBoardId: boardId,
       allowConcurrentPlayback: false,
       defaultPadVolume: 100,
@@ -246,8 +287,12 @@ describe("createSoundboardDb", () => {
       preferredOutputDeviceId: null,
       preferredOutputDeviceLabel: null,
     });
-    expect(migratedPads).toHaveLength(1);
-    expect(migratedPads[0]?.volumeOverride).toBeNull();
+    expect(migratedPad).toMatchObject({
+      id: padId,
+      boardId,
+      label: "Clap",
+      volumeOverride: null,
+    });
   });
 
   it("returns default settings before any records exist", async () => {

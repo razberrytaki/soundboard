@@ -47,9 +47,10 @@ function openDatabase(name: string) {
   return new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(name, DATABASE_VERSION);
 
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       const database = request.result;
       const transaction = request.transaction;
+      const oldVersion = event.oldVersion;
 
       if (!database.objectStoreNames.contains(BOARDS_STORE)) {
         database.createObjectStore(BOARDS_STORE, { keyPath: "id" });
@@ -67,7 +68,7 @@ function openDatabase(name: string) {
         database.createObjectStore(SETTINGS_STORE, { keyPath: "key" });
       }
 
-      if (transaction && request.oldVersion < 2) {
+      if (transaction && oldVersion < 2) {
         const settingsStore = transaction.objectStore(SETTINGS_STORE);
         const padsStore = transaction.objectStore(PADS_STORE);
         const settingsRequest = settingsStore.get(SETTINGS_KEY) as IDBRequest<

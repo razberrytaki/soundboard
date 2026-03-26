@@ -17,9 +17,17 @@ function createRepositoryFixture({
 }: {
   boards: SoundboardBoard[];
   padsByBoardId: Record<string, SoundboardPad[]>;
-  settings: SoundboardSettings;
+  settings: Partial<SoundboardSettings>;
 }) {
-  let currentSettings = settings;
+  let currentSettings: SoundboardSettings = {
+    activeBoardId: null,
+    allowConcurrentPlayback: true,
+    defaultPadVolume: 100,
+    showStopAllButton: true,
+    preferredOutputDeviceId: null,
+    preferredOutputDeviceLabel: null,
+    ...settings,
+  };
   let padCounter = 10;
   let boardCounter = boards.length + 1;
   const mutablePads = Object.fromEntries(
@@ -106,6 +114,10 @@ function createRepositoryFixture({
         audioBlob: input.audioBlob,
         audioName: input.audioName,
         mimeType: input.mimeType,
+        volumeOverride:
+          input.volumeOverride === undefined
+            ? existingPad?.volumeOverride ?? null
+            : input.volumeOverride,
         createdAt: existingPad?.createdAt ?? now,
         updatedAt: now,
       };
@@ -139,6 +151,7 @@ function createPad(overrides: Partial<SoundboardPad>): SoundboardPad {
     audioBlob: new Blob(["a"], { type: "audio/mpeg" }),
     audioName: "airhorn.mp3",
     mimeType: "audio/mpeg",
+    volumeOverride: null,
     createdAt: "2026-03-24T00:00:00.000Z",
     updatedAt: "2026-03-24T00:00:00.000Z",
     ...overrides,
