@@ -62,11 +62,13 @@ export function PadEditor({
   const [mimeType, setMimeType] = useState(() =>
     mode === "edit" && pad ? pad.mimeType : "",
   );
+  const padVolumeOverride = pad?.volumeOverride ?? null;
+  const hasCustomVolume = mode === "edit" && padVolumeOverride !== null;
   const [useDefaultVolume, setUseDefaultVolume] = useState(
-    () => !(mode === "edit" && pad?.volumeOverride !== null),
+    () => !hasCustomVolume,
   );
   const [volumeOverride, setVolumeOverride] = useState(() =>
-    mode === "edit" && pad?.volumeOverride !== null ? pad.volumeOverride : DEFAULT_VOLUME,
+    hasCustomVolume ? padVolumeOverride : DEFAULT_VOLUME,
   );
   const [nameTouched, setNameTouched] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
@@ -76,12 +78,11 @@ export function PadEditor({
   const initialAudioBlob = mode === "edit" && pad ? pad.audioBlob : null;
   const initialAudioName = mode === "edit" && pad ? pad.audioName : "";
   const initialMimeType = mode === "edit" && pad ? pad.mimeType : "";
-  const initialUseDefaultVolume = !(mode === "edit" && pad?.volumeOverride !== null);
+  const initialUseDefaultVolume = !hasCustomVolume;
   const initialVolumeOverride =
-    mode === "edit" && pad?.volumeOverride !== null ? pad.volumeOverride : DEFAULT_VOLUME;
+    hasCustomVolume ? padVolumeOverride : DEFAULT_VOLUME;
   const effectiveVolumeOverride = useDefaultVolume ? null : volumeOverride;
-  const initialEffectiveVolumeOverride =
-    mode === "edit" && pad ? pad.volumeOverride : null;
+  const initialEffectiveVolumeOverride = hasCustomVolume ? padVolumeOverride : null;
   const nameError = nameTouched ? validatePadName(label) : null;
   const normalizedLabel = normalizePadName(label);
   const canSave = !validatePadName(label) && !audioError && Boolean(audioBlob);

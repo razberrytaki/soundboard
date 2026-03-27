@@ -5,17 +5,27 @@ import { describe, expect, it, vi } from "vitest";
 import { SoundboardApp } from "@/components/soundboard/soundboard-app";
 import { createSoundboardDb } from "@/lib/soundboard/db";
 
+type TestPlayer = {
+  play(
+    blob: Blob,
+    options?: { volume: number; outputDeviceId?: string | null },
+  ): Promise<void>;
+  setAllowConcurrentPlayback(value: boolean): void;
+  getActiveCount(): number;
+  stopAll(): void;
+};
+
 function makeDbName() {
   return `soundboard-component-test-${crypto.randomUUID()}`;
 }
 
 function createPlayerFixture() {
   return {
-    play: vi.fn(async () => undefined),
+    play: vi.fn<TestPlayer["play"]>(async () => undefined),
     setAllowConcurrentPlayback: vi.fn(),
     getActiveCount: vi.fn(() => 0),
     stopAll: vi.fn(),
-  };
+  } satisfies TestPlayer;
 }
 
 async function saveCurrentBoardName(user: ReturnType<typeof userEvent.setup>) {
