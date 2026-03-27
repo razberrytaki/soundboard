@@ -145,7 +145,7 @@ The playback module supports:
 - optional `Stop All` cleanup through the active player set
 - cleanup of object URLs after playback ends or fails
 
-Audio output routing is progressive enhancement only. When browser support exists, the runtime can route playback to a chosen device. Otherwise, the app falls back to the system default output while still exposing the state in the settings UI.
+Audio output routing is progressive enhancement only. The runtime prefers the browser's native device picker when available, can fall back to enumerated output-device lists in browsers that support routing without the picker, and otherwise stays on the system default output. Some browsers may require temporary microphone permission before they expose more output devices for selection.
 
 ## Deployment Notes
 

@@ -8,8 +8,11 @@ import { PadGrid } from "@/components/soundboard/pad-grid";
 import { SettingsDialog } from "@/components/soundboard/settings-dialog";
 import { createAudioPlayer } from "@/lib/soundboard/audio-player";
 import {
+  getAudioOutputCapabilities,
+  listAudioOutputDevices,
+  requestAudioInputPermission,
   selectAudioOutput,
-  supportsAudioOutputSelection,
+  type AudioOutputDevice,
 } from "@/lib/soundboard/audio-output";
 import { createSoundboardDb } from "@/lib/soundboard/db";
 import type {
@@ -68,8 +71,15 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
   const [createEditorVersion, setCreateEditorVersion] = useState(0);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [audioOutputSupported] = useState(() => supportsAudioOutputSelection());
+  const [audioOutputCapabilities] = useState(() => getAudioOutputCapabilities());
+  const [audioOutputDevices, setAudioOutputDevices] = useState<AudioOutputDevice[]>(
+    [],
+  );
+  const [isLoadingAudioOutputDevices, setIsLoadingAudioOutputDevices] =
+    useState(false);
   const [isChoosingAudioOutput, setIsChoosingAudioOutput] = useState(false);
+  const [isRequestingAudioPermission, setIsRequestingAudioPermission] =
+    useState(false);
   const [audioOutputError, setAudioOutputError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -118,6 +128,54 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
       cancelled = true;
     };
   }, [playerInstance, repositoryInstance]);
+
+  useEffect(() => {
+    if (
+      !isSettingsDialogOpen ||
+      !audioOutputCapabilities.canRouteOutput ||
+      !audioOutputCapabilities.canEnumerateOutputs
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadAudioOutputs = async () => {
+      setIsLoadingAudioOutputDevices(true);
+
+      try {
+        const devices = await listAudioOutputDevices();
+
+        if (cancelled) {
+          return;
+        }
+
+        setAudioOutputDevices(devices);
+      } catch {
+        if (cancelled) {
+          return;
+        }
+
+        setAudioOutputError(
+          "Couldn't list the available audio output devices. The app can still use the system default output device.",
+        );
+      } finally {
+        if (!cancelled) {
+          setIsLoadingAudioOutputDevices(false);
+        }
+      }
+    };
+
+    void loadAudioOutputs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    audioOutputCapabilities.canEnumerateOutputs,
+    audioOutputCapabilities.canRouteOutput,
+    isSettingsDialogOpen,
+  ]);
 
   const activeBoard =
     boards.find((board) => board.id === activeBoardId) ?? boards[0] ?? null;
@@ -430,6 +488,9 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
         preferredOutputDeviceLabel:
           selection.label || "Selected output device",
       });
+      if (audioOutputCapabilities.canEnumerateOutputs) {
+        setAudioOutputDevices(await listAudioOutputDevices());
+      }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         return;
@@ -440,6 +501,36 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
       );
     } finally {
       setIsChoosingAudioOutput(false);
+    }
+  };
+
+  const handleSelectListedAudioOutput = async (device: AudioOutputDevice) => {
+    setAudioOutputError(null);
+    await updateSettings({
+      preferredOutputDeviceId: device.deviceId,
+      preferredOutputDeviceLabel: device.label,
+    });
+  };
+
+  const handleRequestAudioPermission = async () => {
+    setAudioOutputError(null);
+    setIsRequestingAudioPermission(true);
+
+    try {
+      await requestAudioInputPermission();
+      const devices = await listAudioOutputDevices();
+
+      setAudioOutputDevices(devices);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+
+      setAudioOutputError(
+        "Microphone permission was not granted, so some output devices may remain unavailable.",
+      );
+    } finally {
+      setIsRequestingAudioPermission(false);
     }
   };
 
@@ -623,9 +714,12 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
           </header>
 
           <SettingsDialog
+            audioOutputCapabilities={audioOutputCapabilities}
+            audioOutputDevices={audioOutputDevices}
             audioOutputError={audioOutputError}
-            audioOutputSupported={audioOutputSupported}
             isChoosingAudioOutput={isChoosingAudioOutput}
+            isLoadingAudioOutputDevices={isLoadingAudioOutputDevices}
+            isRequestingAudioPermission={isRequestingAudioPermission}
             onChooseAudioOutput={() => void handleChooseAudioOutput()}
             open={isSettingsDialogOpen}
             onAllowConcurrentPlaybackChange={(value) =>
@@ -635,7 +729,11 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
             onDefaultPadVolumeChange={(value) =>
               void handleDefaultPadVolumeChange(value)
             }
+            onRequestAudioPermission={() => void handleRequestAudioPermission()}
             onResetAudioOutput={() => void handleResetAudioOutput()}
+            onSelectListedAudioOutput={(device) =>
+              void handleSelectListedAudioOutput(device)
+            }
             onShowStopAllButtonChange={(value) =>
               void handleShowStopAllButtonChange(value)
             }

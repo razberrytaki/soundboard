@@ -284,9 +284,11 @@ describe("SoundboardApp persistence regressions", () => {
       screen.getByRole("checkbox", { name: /allow concurrent playback/i }),
     );
 
-    expect(
-      screen.getByRole("checkbox", { name: /allow concurrent playback/i }),
-    ).not.toBeChecked();
+    await waitFor(() => {
+      expect(
+        screen.getByRole("checkbox", { name: /allow concurrent playback/i }),
+      ).not.toBeChecked();
+    });
 
     initialView.unmount();
 

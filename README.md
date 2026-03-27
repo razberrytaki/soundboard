@@ -119,7 +119,7 @@ This project is intended to work on current desktop releases of:
 
 Mobile browsers are best-effort only. Because the app depends on IndexedDB, `Blob` storage, and browser-managed audio playback, quota limits and playback policies can still vary by browser version and device.
 
-Audio output device routing is treated as a progressive enhancement feature. The settings UI is available everywhere, but choosing a specific output device depends on browser support for related media APIs and may still require a secure context and direct user interaction.
+Audio output device routing is treated as a progressive enhancement feature. The app prefers the browser's native device picker when available, falls back to enumerated output-device lists when possible, and otherwise keeps using the system default output. In some browsers, revealing more output devices may require temporary microphone permission so the browser can expose related audio hardware metadata.
 
 If you find a browser-specific issue, open a bug report and include the exact browser version and operating system.
 

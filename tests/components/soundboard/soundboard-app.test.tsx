@@ -12,15 +12,26 @@ import type {
 } from "@/lib/soundboard/types";
 
 const audioOutputSupport = vi.hoisted(() => ({
-  supported: true,
+  capabilities: {
+    secureContext: true,
+    canRouteOutput: true,
+    canPromptSelection: true,
+    canEnumerateOutputs: true,
+    canRequestInputPermission: true,
+  },
   selectAudioOutput: vi.fn(),
+  listAudioOutputDevices: vi.fn(async () => []),
+  requestAudioInputPermission: vi.fn(async () => undefined),
 }));
 
 vi.mock("@/lib/soundboard/audio-output", () => ({
-  supportsAudioOutputSelection: () => audioOutputSupport.supported,
+  getAudioOutputCapabilities: () => audioOutputSupport.capabilities,
   supportsAudioOutputRouting: () => true,
   selectAudioOutput: (options?: { deviceId?: string | null }) =>
     audioOutputSupport.selectAudioOutput(options),
+  listAudioOutputDevices: () => audioOutputSupport.listAudioOutputDevices(),
+  requestAudioInputPermission: () =>
+    audioOutputSupport.requestAudioInputPermission(),
 }));
 
 function createRepositoryFixture({
@@ -172,8 +183,16 @@ function createPad(overrides: Partial<SoundboardPad>): SoundboardPad {
 }
 
 afterEach(() => {
-  audioOutputSupport.supported = true;
+  audioOutputSupport.capabilities = {
+    secureContext: true,
+    canRouteOutput: true,
+    canPromptSelection: true,
+    canEnumerateOutputs: true,
+    canRequestInputPermission: true,
+  };
   audioOutputSupport.selectAudioOutput.mockReset();
+  audioOutputSupport.listAudioOutputDevices.mockReset();
+  audioOutputSupport.requestAudioInputPermission.mockReset();
   vi.clearAllMocks();
 });
 
@@ -332,7 +351,13 @@ describe("SoundboardApp", () => {
   });
 
   it("shows the unsupported browser explanation for audio output selection", async () => {
-    audioOutputSupport.supported = false;
+    audioOutputSupport.capabilities = {
+      secureContext: true,
+      canRouteOutput: false,
+      canPromptSelection: false,
+      canEnumerateOutputs: false,
+      canRequestInputPermission: false,
+    };
 
     const repository = createRepositoryFixture({
       boards: [
@@ -365,6 +390,108 @@ describe("SoundboardApp", () => {
     expect(
       await screen.findByText(/audio output selection is not supported in this browser/i),
     ).toBeInTheDocument();
+  });
+
+  it("lists available output devices when the browser can route audio but not open a picker", async () => {
+    const user = userEvent.setup();
+    audioOutputSupport.capabilities = {
+      secureContext: true,
+      canRouteOutput: true,
+      canPromptSelection: false,
+      canEnumerateOutputs: true,
+      canRequestInputPermission: true,
+    };
+    audioOutputSupport.listAudioOutputDevices.mockResolvedValue([
+      { deviceId: "default", label: "System Default" },
+      { deviceId: "speaker-1", label: "Desk Speakers" },
+    ]);
+    const repository = createRepositoryFixture({
+      boards: [
+        {
+          id: "board-1",
+          name: "Stream",
+          order: 1,
+          createdAt: "2026-03-24T00:00:00.000Z",
+          updatedAt: "2026-03-24T00:00:00.000Z",
+        },
+      ],
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await user.click(await screen.findByRole("button", { name: /settings/i }));
+    await screen.findByRole("button", { name: /use desk speakers/i });
+
+    await user.click(screen.getByRole("button", { name: /use desk speakers/i }));
+
+    await waitFor(() => {
+      expect(repository.updateSettings).toHaveBeenCalledWith({
+        preferredOutputDeviceId: "speaker-1",
+        preferredOutputDeviceLabel: "Desk Speakers",
+      });
+    });
+  });
+
+  it("explains why microphone permission may be requested to reveal more output devices", async () => {
+    const user = userEvent.setup();
+    audioOutputSupport.capabilities = {
+      secureContext: true,
+      canRouteOutput: true,
+      canPromptSelection: false,
+      canEnumerateOutputs: true,
+      canRequestInputPermission: true,
+    };
+    audioOutputSupport.listAudioOutputDevices.mockResolvedValue([]);
+    const repository = createRepositoryFixture({
+      boards: [
+        {
+          id: "board-1",
+          name: "Stream",
+          order: 1,
+          createdAt: "2026-03-24T00:00:00.000Z",
+          updatedAt: "2026-03-24T00:00:00.000Z",
+        },
+      ],
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await user.click(await screen.findByRole("button", { name: /settings/i }));
+
+    expect(
+      await screen.findByText(/temporary microphone permission/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/this does not start recording/i),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: /grant access to more devices/i }),
+    );
+
+    expect(audioOutputSupport.requestAudioInputPermission).toHaveBeenCalledTimes(1);
   });
 
   it("saves a chosen audio output device from the settings dialog", async () => {

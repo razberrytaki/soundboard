@@ -3,9 +3,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  getAudioOutputCapabilities,
+  listAudioOutputDevices,
+  requestAudioInputPermission,
   selectAudioOutput,
   supportsAudioOutputRouting,
-  supportsAudioOutputSelection,
 } from "@/lib/soundboard/audio-output";
 
 afterEach(() => {
@@ -13,20 +15,63 @@ afterEach(() => {
 });
 
 describe("audio output support helpers", () => {
-  it("detects selection support when the browser exposes selectAudioOutput", () => {
+  it("reports picker, routing, enumeration, and permission capabilities", () => {
+    vi.stubGlobal("isSecureContext", true);
     vi.stubGlobal("navigator", {
       mediaDevices: {
+        enumerateDevices: vi.fn(),
+        getUserMedia: vi.fn(),
         selectAudioOutput: vi.fn(),
       },
     });
+    function HtmlMediaElementFixture() {}
 
-    expect(supportsAudioOutputSelection()).toBe(true);
+    HtmlMediaElementFixture.prototype = {
+      setSinkId: vi.fn(),
+    };
+
+    vi.stubGlobal("HTMLMediaElement", HtmlMediaElementFixture);
+
+    expect(getAudioOutputCapabilities()).toEqual({
+      secureContext: true,
+      canRouteOutput: true,
+      canPromptSelection: true,
+      canEnumerateOutputs: true,
+      canRequestInputPermission: true,
+    });
   });
 
-  it("returns false when selection support is unavailable", () => {
-    vi.stubGlobal("navigator", {});
+  it("lists only audio output devices", async () => {
+    vi.stubGlobal("navigator", {
+      mediaDevices: {
+        enumerateDevices: vi.fn(async () => [
+          { deviceId: "mic-1", kind: "audioinput", label: "Mic" },
+          { deviceId: "default", kind: "audiooutput", label: "System Default" },
+          { deviceId: "speaker-1", kind: "audiooutput", label: "Desk Speakers" },
+        ]),
+      },
+    });
 
-    expect(supportsAudioOutputSelection()).toBe(false);
+    await expect(listAudioOutputDevices()).resolves.toEqual([
+      { deviceId: "default", label: "System Default" },
+      { deviceId: "speaker-1", label: "Desk Speakers" },
+    ]);
+  });
+
+  it("requests microphone permission and stops the acquired tracks", async () => {
+    const stop = vi.fn();
+
+    vi.stubGlobal("navigator", {
+      mediaDevices: {
+        getUserMedia: vi.fn(async () => ({
+          getTracks: () => [{ stop }],
+        })),
+      },
+    });
+
+    await requestAudioInputPermission();
+
+    expect(stop).toHaveBeenCalledTimes(1);
   });
 
   it("selects an audio output device and returns its metadata", async () => {

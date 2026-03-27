@@ -1,5 +1,9 @@
 "use client";
 
+import type {
+  AudioOutputCapabilities,
+  AudioOutputDevice,
+} from "@/lib/soundboard/audio-output";
 import type { SoundboardSettings } from "@/lib/soundboard/types";
 
 type SettingsDialogProps = {
@@ -12,33 +16,52 @@ type SettingsDialogProps = {
     | "preferredOutputDeviceId"
     | "preferredOutputDeviceLabel"
   >;
-  audioOutputSupported: boolean;
+  audioOutputCapabilities: AudioOutputCapabilities;
+  audioOutputDevices: AudioOutputDevice[];
   isChoosingAudioOutput: boolean;
+  isLoadingAudioOutputDevices: boolean;
+  isRequestingAudioPermission: boolean;
   audioOutputError: string | null;
   onClose(): void;
   onDefaultPadVolumeChange(value: number): void;
   onAllowConcurrentPlaybackChange(value: boolean): void;
   onShowStopAllButtonChange(value: boolean): void;
   onChooseAudioOutput(): void;
+  onSelectListedAudioOutput(device: AudioOutputDevice): void;
+  onRequestAudioPermission(): void;
   onResetAudioOutput(): void;
 };
 
 export function SettingsDialog({
   open,
   settings,
-  audioOutputSupported,
+  audioOutputCapabilities,
+  audioOutputDevices,
   isChoosingAudioOutput,
+  isLoadingAudioOutputDevices,
+  isRequestingAudioPermission,
   audioOutputError,
   onClose,
   onDefaultPadVolumeChange,
   onAllowConcurrentPlaybackChange,
   onShowStopAllButtonChange,
   onChooseAudioOutput,
+  onSelectListedAudioOutput,
+  onRequestAudioPermission,
   onResetAudioOutput,
 }: SettingsDialogProps) {
   if (!open) {
     return null;
   }
+
+  const canManageOutput =
+    audioOutputCapabilities.secureContext && audioOutputCapabilities.canRouteOutput;
+  const showManualDeviceList =
+    canManageOutput && audioOutputCapabilities.canEnumerateOutputs;
+  const showPermissionPrompt =
+    showManualDeviceList &&
+    audioOutputDevices.length === 0 &&
+    audioOutputCapabilities.canRequestInputPermission;
 
   return (
     <div
@@ -148,22 +171,36 @@ export function SettingsDialog({
               </h3>
             </div>
 
-            {audioOutputSupported ? (
+            {!audioOutputCapabilities.secureContext ? (
+              <div className="mt-4 rounded-2xl border border-[rgba(217,91,67,0.22)] bg-[rgba(217,91,67,0.08)] p-4 text-sm leading-6 text-[var(--color-ink)]">
+                Audio output routing requires a secure context. The app will use the
+                system default output device until it is opened over HTTPS or
+                localhost.
+              </div>
+            ) : !audioOutputCapabilities.canRouteOutput ? (
+              <div className="mt-4 rounded-2xl border border-[rgba(217,91,67,0.22)] bg-[rgba(217,91,67,0.08)] p-4 text-sm leading-6 text-[var(--color-ink)]">
+                Audio output selection is not supported in this browser. The app will
+                use the system default output device.
+              </div>
+            ) : (
               <div className="mt-4 flex flex-col gap-3 text-sm text-[var(--color-muted)]">
                 <p>
                   {settings.preferredOutputDeviceLabel
                     ? `Selected output: ${settings.preferredOutputDeviceLabel}`
                     : "System Default"}
                 </p>
+
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    className="w-fit rounded-full border border-[var(--color-line)] px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition-colors duration-200 hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={isChoosingAudioOutput}
-                    onClick={onChooseAudioOutput}
-                    type="button"
-                  >
-                    {isChoosingAudioOutput ? "Choosing..." : "Choose Device..."}
-                  </button>
+                  {audioOutputCapabilities.canPromptSelection ? (
+                    <button
+                      className="w-fit rounded-full border border-[var(--color-line)] px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition-colors duration-200 hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={isChoosingAudioOutput}
+                      onClick={onChooseAudioOutput}
+                      type="button"
+                    >
+                      {isChoosingAudioOutput ? "Choosing..." : "Choose Device..."}
+                    </button>
+                  ) : null}
                   {settings.preferredOutputDeviceId ? (
                     <button
                       className="w-fit rounded-full border border-[var(--color-line)] px-4 py-2 text-sm font-medium text-[var(--color-muted)] transition-colors duration-200 hover:bg-white/80"
@@ -174,17 +211,69 @@ export function SettingsDialog({
                     </button>
                   ) : null}
                 </div>
+
+                {showManualDeviceList ? (
+                  <div className="space-y-3 rounded-3xl border border-[var(--color-line)] bg-white/60 p-4">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-[var(--color-ink)]">
+                        Available output devices
+                      </p>
+                      <p className="text-xs leading-5 text-[var(--color-muted)]">
+                        Some browsers do not show every output device until additional
+                        media permission is granted.
+                      </p>
+                    </div>
+
+                    {isLoadingAudioOutputDevices ? (
+                      <p>Scanning output devices...</p>
+                    ) : audioOutputDevices.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {audioOutputDevices.map((device) => (
+                          <button
+                            key={device.deviceId}
+                            className="rounded-full border border-[var(--color-line)] px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition-colors duration-200 hover:bg-white/80"
+                            onClick={() => onSelectListedAudioOutput(device)}
+                            type="button"
+                          >
+                            {settings.preferredOutputDeviceId === device.deviceId
+                              ? `Using ${device.label}`
+                              : `Use ${device.label}`}
+                          </button>
+                        ))}
+                      </div>
+                    ) : showPermissionPrompt ? (
+                      <div className="rounded-2xl border border-[rgba(217,91,67,0.16)] bg-[rgba(217,91,67,0.06)] p-4 text-[var(--color-ink)]">
+                        <p className="text-sm leading-6">
+                          To list more output devices, this browser may require
+                          temporary microphone permission.
+                        </p>
+                        <p className="mt-2 text-sm leading-6">
+                          This does not start recording. The permission is only used
+                          so the browser can reveal related audio devices for output
+                          routing.
+                        </p>
+                        <button
+                          className="mt-3 rounded-full border border-[var(--color-line)] px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition-colors duration-200 hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={isRequestingAudioPermission}
+                          onClick={onRequestAudioPermission}
+                          type="button"
+                        >
+                          {isRequestingAudioPermission
+                            ? "Requesting access..."
+                            : "Grant access to more devices"}
+                        </button>
+                      </div>
+                    ) : (
+                      <p>No alternative output devices are currently available.</p>
+                    )}
+                  </div>
+                ) : null}
+
                 {audioOutputError ? (
                   <p className="rounded-2xl border border-[rgba(217,91,67,0.22)] bg-[rgba(217,91,67,0.08)] p-4 text-sm leading-6 text-[var(--color-ink)]">
                     {audioOutputError}
                   </p>
                 ) : null}
-              </div>
-            ) : (
-              <div className="mt-4 rounded-2xl border border-[rgba(217,91,67,0.22)] bg-[rgba(217,91,67,0.08)] p-4 text-sm leading-6 text-[var(--color-ink)]">
-                Audio output selection is not supported in this browser. The app will
-                use the system default output device. Some browsers require a secure
-                context and a direct user gesture before device routing is available.
               </div>
             )}
           </section>
