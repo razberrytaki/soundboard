@@ -67,11 +67,14 @@ export function SettingsDialog({
     <div
       aria-label="Settings"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(31,26,18,0.42)] px-4 py-6 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[rgba(31,26,18,0.42)] px-4 py-4 backdrop-blur-sm md:px-6 md:py-6"
       role="dialog"
     >
-      <div className="w-full max-w-2xl rounded-[32px] border border-[var(--color-line)] bg-[rgba(251,248,242,0.98)] p-6 shadow-[var(--shadow-shell)] md:p-8">
-        <div className="flex items-start justify-between gap-4">
+      <div
+        className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-[32px] border border-[var(--color-line)] bg-[rgba(251,248,242,0.98)] shadow-[var(--shadow-shell)] md:max-h-[calc(100vh-3rem)]"
+        data-testid="settings-dialog-panel"
+      >
+        <div className="flex shrink-0 flex-col gap-4 px-6 pt-6 sm:flex-row sm:items-start sm:justify-between md:px-8 md:pt-8">
           <div>
             <p className="font-[family-name:var(--font-mono)] text-[0.72rem] uppercase tracking-[0.28em] text-[var(--color-muted)]">
               Settings
@@ -92,7 +95,11 @@ export function SettingsDialog({
           </button>
         </div>
 
-        <div className="mt-6 grid gap-5">
+        <div
+          className="mt-6 min-h-0 overflow-y-auto px-6 pb-6 md:px-8 md:pb-8"
+          data-testid="settings-dialog-body"
+        >
+          <div className="grid gap-5">
           <section className="rounded-[28px] border border-[var(--color-line)] bg-white/75 p-5">
             <div className="space-y-2">
               <p className="font-[family-name:var(--font-mono)] text-[0.72rem] uppercase tracking-[0.28em] text-[var(--color-muted)]">
@@ -277,6 +284,7 @@ export function SettingsDialog({
               </div>
             )}
           </section>
+          </div>
         </div>
       </div>
     </div>
