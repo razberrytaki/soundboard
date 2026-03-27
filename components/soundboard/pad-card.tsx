@@ -8,10 +8,10 @@ type PadCardProps = {
 
 export function PadCard({ pad, onEdit, onPlay }: PadCardProps) {
   return (
-    <div className="space-y-2">
+    <div className="group relative">
       <button
         aria-label={pad.label}
-        className="group aspect-square w-full rounded-[26px] border border-[rgba(23,20,18,0.08)] bg-[rgba(255,255,255,0.68)] p-4 text-left shadow-[0_16px_36px_rgba(34,24,16,0.08)] transition-transform duration-200 hover:-translate-y-1"
+        className="aspect-square w-full rounded-[26px] border border-[rgba(23,20,18,0.08)] bg-[rgba(255,255,255,0.68)] p-4 text-left shadow-[0_16px_36px_rgba(34,24,16,0.08)] transition-transform duration-200 hover:-translate-y-1"
         onClick={() => onPlay(pad)}
         style={{ "--pad-color": pad.color } as React.CSSProperties}
         type="button"
@@ -27,7 +27,7 @@ export function PadCard({ pad, onEdit, onPlay }: PadCardProps) {
       </button>
       <button
         aria-label={`Edit ${pad.label}`}
-        className="w-full rounded-full border border-[var(--color-line)] px-3 py-2 text-sm text-[var(--color-ink)] transition-colors duration-200 hover:bg-white/70"
+        className="absolute right-3 top-3 rounded-full border border-white/24 bg-[rgba(24,18,14,0.52)] px-3 py-1.5 text-xs font-medium uppercase tracking-[0.16em] text-white opacity-0 transition-opacity duration-200 hover:bg-[rgba(24,18,14,0.7)] group-hover:opacity-100 group-focus-within:opacity-100"
         onClick={() => onEdit(pad)}
         type="button"
       >

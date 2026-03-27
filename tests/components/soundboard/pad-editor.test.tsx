@@ -152,4 +152,24 @@ describe("PadEditor", () => {
     ).not.toBeChecked();
     expect(screen.getByRole("slider", { name: /pad volume/i })).toHaveValue("35");
   });
+
+  it("uses a custom upload trigger instead of the default file input presentation", async () => {
+    const user = userEvent.setup();
+
+    renderPadEditor();
+
+    const uploadInput = screen.getByLabelText(/audio file/i);
+    const uploadTrigger = screen.getByRole("button", { name: /choose audio file/i });
+
+    expect(uploadInput).toHaveClass("sr-only");
+    expect(screen.getByText(/stored only in this browser/i)).toBeInTheDocument();
+
+    await user.upload(
+      uploadInput,
+      new File(["laugh"], "laugh.mp3", { type: "audio/mpeg" }),
+    );
+
+    expect(screen.getByText("laugh.mp3")).toBeInTheDocument();
+    expect(uploadTrigger).toHaveTextContent(/replace audio file/i);
+  });
 });

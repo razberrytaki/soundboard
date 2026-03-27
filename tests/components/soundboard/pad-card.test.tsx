@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { PadCard } from "@/components/soundboard/pad-card";
@@ -47,5 +48,24 @@ describe("PadCard", () => {
     expect(screen.getByText("Play")).toHaveClass("opacity-0");
     expect(screen.getByText("Play")).toHaveClass("group-hover:opacity-100");
     expect(screen.getByText("Play")).toHaveClass("group-focus-visible:opacity-100");
+  });
+
+  it("shows an edit pill inside the pad instead of a separate edit button", async () => {
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    const onPlay = vi.fn();
+
+    render(<PadCard onEdit={onEdit} onPlay={onPlay} pad={createPad()} />);
+
+    const editAction = screen.getByRole("button", {
+      name: /edit very long pad name/i,
+    });
+    expect(editAction).toHaveClass("opacity-0");
+    expect(editAction).toHaveClass("group-hover:opacity-100");
+
+    await user.click(editAction);
+
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(onPlay).not.toHaveBeenCalled();
   });
 });

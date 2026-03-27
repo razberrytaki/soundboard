@@ -228,7 +228,7 @@ describe("SoundboardApp", () => {
 
     expect(await screen.findByRole("dialog", { name: /settings/i })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /close settings/i }));
+    await user.click(screen.getByRole("button", { name: /^close$/i }));
 
     await waitFor(() => {
       expect(screen.queryByRole("dialog", { name: /settings/i })).not.toBeInTheDocument();

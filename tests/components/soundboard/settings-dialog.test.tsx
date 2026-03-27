@@ -1,9 +1,12 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { SettingsDialog } from "@/components/soundboard/settings-dialog";
 
 function renderSettingsDialog() {
+  const onClose = vi.fn();
+
   render(
     <SettingsDialog
       audioOutputCapabilities={{
@@ -20,7 +23,7 @@ function renderSettingsDialog() {
       isRequestingAudioPermission={false}
       onAllowConcurrentPlaybackChange={vi.fn()}
       onChooseAudioOutput={vi.fn()}
-      onClose={vi.fn()}
+      onClose={onClose}
       onDefaultPadVolumeChange={vi.fn()}
       onRequestAudioPermission={vi.fn()}
       onResetAudioOutput={vi.fn()}
@@ -36,6 +39,8 @@ function renderSettingsDialog() {
       }}
     />,
   );
+
+  return { onClose };
 }
 
 describe("SettingsDialog", () => {
@@ -52,5 +57,18 @@ describe("SettingsDialog", () => {
       "min-h-0",
       "overflow-y-auto",
     );
+  });
+
+  it("uses a shorter close label and closes from the backdrop or Escape", async () => {
+    const user = userEvent.setup();
+    const { onClose } = renderSettingsDialog();
+
+    expect(screen.getByRole("button", { name: /^close$/i })).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByRole("dialog", { name: /settings/i }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    await user.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalledTimes(2);
   });
 });

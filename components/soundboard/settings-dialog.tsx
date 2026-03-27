@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 import type {
   AudioOutputCapabilities,
   AudioOutputDevice,
@@ -50,6 +52,24 @@ export function SettingsDialog({
   onRequestAudioPermission,
   onResetAudioOutput,
 }: SettingsDialogProps) {
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose, open]);
+
   if (!open) {
     return null;
   }
@@ -68,11 +88,17 @@ export function SettingsDialog({
       aria-label="Settings"
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[rgba(31,26,18,0.42)] px-4 py-4 backdrop-blur-sm md:px-6 md:py-6"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
       role="dialog"
     >
       <div
         className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-[32px] border border-[var(--color-line)] bg-[rgba(251,248,242,0.98)] shadow-[var(--shadow-shell)] md:max-h-[calc(100vh-3rem)]"
         data-testid="settings-dialog-panel"
+        onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="flex shrink-0 flex-col gap-4 px-6 pt-6 sm:flex-row sm:items-start sm:justify-between md:px-8 md:pt-8">
           <div>
@@ -91,7 +117,7 @@ export function SettingsDialog({
             onClick={onClose}
             type="button"
           >
-            Close settings
+            Close
           </button>
         </div>
 

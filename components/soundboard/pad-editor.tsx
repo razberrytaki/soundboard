@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import type { SoundboardPad } from "@/lib/soundboard/types";
 import {
@@ -49,6 +49,8 @@ export function PadEditor({
 }: PadEditorProps) {
   const nameErrorId = useId();
   const audioErrorId = useId();
+  const fileInputId = useId();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [label, setLabel] = useState(() => (mode === "edit" && pad ? pad.label : ""));
   const [color, setColor] = useState(() =>
     mode === "edit" && pad ? pad.color : DEFAULT_COLOR,
@@ -183,15 +185,17 @@ export function PadEditor({
         </div>
 
         <div className="space-y-2">
-          <label className="block space-y-2">
+          <div className="space-y-2">
             <span className="text-sm font-medium text-[var(--color-ink)]">
               Audio File
             </span>
             <input
               accept="audio/*"
               aria-describedby={audioError ? audioErrorId : undefined}
+              aria-label="Audio File"
               aria-invalid={audioError ? "true" : "false"}
-              className="block w-full rounded-2xl border border-[var(--color-line)] bg-white/80 px-4 py-3 text-sm"
+              className="sr-only"
+              id={fileInputId}
               onChange={(event) => {
                 const nextFile = event.target.files?.[0];
 
@@ -218,9 +222,27 @@ export function PadEditor({
                 setAudioName(nextFile.name);
                 setMimeType(nextFile.type);
               }}
+              ref={fileInputRef}
               type="file"
             />
-          </label>
+            <button
+              className="flex w-full items-center justify-between rounded-[24px] border border-[var(--color-line)] bg-white/80 px-4 py-4 text-left transition-colors duration-200 hover:bg-white"
+              onClick={() => fileInputRef.current?.click()}
+              type="button"
+            >
+              <span className="space-y-1">
+                <span className="block text-sm font-medium text-[var(--color-ink)]">
+                  {audioName ? "Replace audio file" : "Choose audio file"}
+                </span>
+                <span className="block text-xs leading-5 text-[var(--color-muted)]">
+                  Stored only in this browser for offline reuse on this device.
+                </span>
+              </span>
+              <span className="font-[family-name:var(--font-mono)] text-[0.7rem] uppercase tracking-[0.2em] text-[var(--color-muted)]">
+                Browse
+              </span>
+            </button>
+          </div>
           {audioName ? (
             <p className="text-xs text-[var(--color-muted)]">{audioName}</p>
           ) : null}
