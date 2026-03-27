@@ -28,7 +28,7 @@ const DELETE_BOARD_MESSAGE =
   "Delete this board?\nThis board contains saved sound pads. Deleting it will remove them from this browser.";
 
 type SoundboardPlayer = {
-  play(blob: Blob): Promise<void>;
+  play(blob: Blob, options?: { volume: number; outputDeviceId?: string | null }): Promise<void>;
   setAllowConcurrentPlayback(value: boolean): void;
   getActiveCount(): number;
   stopAll(): void;
@@ -219,6 +219,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     audioBlob: Blob;
     audioName: string;
     mimeType: string;
+    volumeOverride: number | null;
   }) => {
     if (!activeBoardId) {
       return;
@@ -238,6 +239,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
       audioBlob: value.audioBlob,
       audioName: value.audioName,
       mimeType: value.mimeType,
+      volumeOverride: value.volumeOverride,
     });
 
     await refreshPads(activeBoardId);
@@ -410,7 +412,9 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
   };
 
   const handlePlay = async (pad: SoundboardPad) => {
-    await playerInstance.play(pad.audioBlob);
+    await playerInstance.play(pad.audioBlob, {
+      volume: pad.volumeOverride ?? settings?.defaultPadVolume ?? 100,
+    });
   };
 
   if (loading) {

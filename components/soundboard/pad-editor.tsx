@@ -18,6 +18,7 @@ type PadEditorSubmitValue = {
   audioBlob: Blob;
   audioName: string;
   mimeType: string;
+  volumeOverride: number | null;
 };
 
 type PadEditorProps = {
@@ -33,6 +34,7 @@ type PadEditorProps = {
 };
 
 const DEFAULT_COLOR = "#d95b43";
+const DEFAULT_VOLUME = 100;
 
 export function PadEditor({
   mode,
@@ -60,6 +62,12 @@ export function PadEditor({
   const [mimeType, setMimeType] = useState(() =>
     mode === "edit" && pad ? pad.mimeType : "",
   );
+  const [useDefaultVolume, setUseDefaultVolume] = useState(
+    () => !(mode === "edit" && pad?.volumeOverride !== null),
+  );
+  const [volumeOverride, setVolumeOverride] = useState(() =>
+    mode === "edit" && pad?.volumeOverride !== null ? pad.volumeOverride : DEFAULT_VOLUME,
+  );
   const [nameTouched, setNameTouched] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
 
@@ -68,6 +76,12 @@ export function PadEditor({
   const initialAudioBlob = mode === "edit" && pad ? pad.audioBlob : null;
   const initialAudioName = mode === "edit" && pad ? pad.audioName : "";
   const initialMimeType = mode === "edit" && pad ? pad.mimeType : "";
+  const initialUseDefaultVolume = !(mode === "edit" && pad?.volumeOverride !== null);
+  const initialVolumeOverride =
+    mode === "edit" && pad?.volumeOverride !== null ? pad.volumeOverride : DEFAULT_VOLUME;
+  const effectiveVolumeOverride = useDefaultVolume ? null : volumeOverride;
+  const initialEffectiveVolumeOverride =
+    mode === "edit" && pad ? pad.volumeOverride : null;
   const nameError = nameTouched ? validatePadName(label) : null;
   const normalizedLabel = normalizePadName(label);
   const canSave = !validatePadName(label) && !audioError && Boolean(audioBlob);
@@ -78,7 +92,9 @@ export function PadEditor({
       color !== initialColor ||
       audioBlob !== initialAudioBlob ||
       audioName !== initialAudioName ||
-      mimeType !== initialMimeType;
+      mimeType !== initialMimeType ||
+      useDefaultVolume !== initialUseDefaultVolume ||
+      effectiveVolumeOverride !== initialEffectiveVolumeOverride;
 
     onDirtyChange(isDirty);
   }, [
@@ -90,9 +106,14 @@ export function PadEditor({
     initialColor,
     initialLabel,
     initialMimeType,
+    initialUseDefaultVolume,
+    initialVolumeOverride,
+    initialEffectiveVolumeOverride,
     label,
     mimeType,
     onDirtyChange,
+    useDefaultVolume,
+    effectiveVolumeOverride,
   ]);
 
   const handleSave = async () => {
@@ -113,6 +134,7 @@ export function PadEditor({
       audioBlob,
       audioName,
       mimeType,
+      volumeOverride: effectiveVolumeOverride,
     });
   };
 
@@ -221,6 +243,41 @@ export function PadEditor({
             value={color}
           />
         </label>
+
+        <div className="space-y-3 rounded-3xl border border-[var(--color-line)] bg-white/50 p-4">
+          <label className="flex items-center gap-3">
+            <input
+              checked={useDefaultVolume}
+              onChange={(event) => setUseDefaultVolume(event.target.checked)}
+              type="checkbox"
+            />
+            <span className="text-sm font-medium text-[var(--color-ink)]">
+              Use default volume
+            </span>
+          </label>
+
+          {!useDefaultVolume ? (
+            <label className="block space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium text-[var(--color-ink)]">
+                  Pad Volume
+                </span>
+                <span className="font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
+                  {volumeOverride}%
+                </span>
+              </div>
+              <input
+                aria-label="Pad Volume"
+                className="w-full"
+                max={100}
+                min={0}
+                onChange={(event) => setVolumeOverride(Number(event.target.value))}
+                type="range"
+                value={volumeOverride}
+              />
+            </label>
+          ) : null}
+        </div>
 
         {mode === "edit" ? (
           <div className="grid grid-cols-2 gap-2">

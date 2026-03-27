@@ -119,4 +119,37 @@ describe("PadEditor", () => {
 
     expect(onDirtyChange).toHaveBeenLastCalledWith(true);
   });
+
+  it("checks Use default volume by default on new pads", () => {
+    renderPadEditor();
+
+    expect(
+      screen.getByRole("checkbox", { name: /use default volume/i }),
+    ).toBeChecked();
+    expect(screen.queryByRole("slider", { name: /pad volume/i })).not.toBeInTheDocument();
+  });
+
+  it("shows the pad volume slider when default volume is disabled", async () => {
+    const user = userEvent.setup();
+
+    renderPadEditor();
+
+    await user.click(screen.getByRole("checkbox", { name: /use default volume/i }));
+
+    expect(
+      screen.getByRole("slider", { name: /pad volume/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("reflects an existing custom volume in edit mode", () => {
+    renderPadEditor({
+      mode: "edit",
+      pad: createPad({ volumeOverride: 35 }),
+    });
+
+    expect(
+      screen.getByRole("checkbox", { name: /use default volume/i }),
+    ).not.toBeChecked();
+    expect(screen.getByRole("slider", { name: /pad volume/i })).toHaveValue("35");
+  });
 });

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -35,7 +35,65 @@ async function createPad(
   await user.click(screen.getByRole("button", { name: /save pad/i }));
 }
 
+async function setPadVolume(
+  user: ReturnType<typeof userEvent.setup>,
+  volume: string,
+) {
+  await user.click(screen.getByRole("button", { name: /edit airhorn/i }));
+  await user.click(screen.getByRole("checkbox", { name: /use default volume/i }));
+  fireEvent.change(screen.getByRole("slider", { name: /pad volume/i }), {
+    target: { value: volume },
+  });
+  await user.click(screen.getByRole("button", { name: /save pad/i }));
+}
+
 describe("SoundboardApp persistence regressions", () => {
+  it("persists a custom pad volume across edit and remount", async () => {
+    const user = userEvent.setup();
+    const dbName = makeDbName();
+    const player = createPlayerFixture();
+    const initialView = render(
+      <SoundboardApp player={player} repository={createSoundboardDb(dbName)} />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: /create board/i }));
+    await saveCurrentBoardName(user);
+    await createPad(user, "Airhorn", "airhorn.mp3");
+    await setPadVolume(user, "35");
+
+    initialView.unmount();
+
+    render(
+      <SoundboardApp player={player} repository={createSoundboardDb(dbName)} />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: /edit airhorn/i }));
+    expect(screen.getByRole("checkbox", { name: /use default volume/i })).not.toBeChecked();
+    expect(screen.getByRole("slider", { name: /pad volume/i })).toHaveValue("35");
+
+    await user.click(screen.getByRole("button", { name: /save pad/i }));
+    await user.click(screen.getByRole("button", { name: /^airhorn$/i }));
+
+    expect(player.play).toHaveBeenCalledTimes(1);
+    expect(player.play.mock.calls[0]?.[1]).toMatchObject({ volume: 35 });
+  });
+
+  it("falls back to the global default when volumeOverride is null", async () => {
+    const user = userEvent.setup();
+    const dbName = makeDbName();
+    const player = createPlayerFixture();
+    render(<SoundboardApp player={player} repository={createSoundboardDb(dbName)} />);
+
+    await user.click(await screen.findByRole("button", { name: /create board/i }));
+    await saveCurrentBoardName(user);
+    await createPad(user, "Airhorn", "airhorn.mp3");
+
+    await user.click(screen.getByRole("button", { name: /^airhorn$/i }));
+
+    expect(player.play).toHaveBeenCalled();
+    expect(player.play.mock.calls[0]?.[1]).toMatchObject({ volume: 100 });
+  });
+
   it("restores a created board and saved pad after remounting with the same database", async () => {
     const user = userEvent.setup();
     const dbName = makeDbName();
@@ -211,6 +269,7 @@ describe("SoundboardApp persistence regressions", () => {
 
     await user.click(await screen.findByRole("button", { name: /create board/i }));
     await saveCurrentBoardName(user);
+    await user.click(screen.getByRole("button", { name: /settings/i }));
     await user.click(
       screen.getByRole("checkbox", { name: /allow concurrent playback/i }),
     );
@@ -228,6 +287,7 @@ describe("SoundboardApp persistence regressions", () => {
       />,
     );
 
+    await user.click(await screen.findByRole("button", { name: /settings/i }));
     expect(
       await screen.findByRole("checkbox", { name: /allow concurrent playback/i }),
     ).not.toBeChecked();
