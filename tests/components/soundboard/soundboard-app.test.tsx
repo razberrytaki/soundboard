@@ -1082,7 +1082,9 @@ describe("SoundboardApp", () => {
 
     await user.click(await screen.findByRole("button", { name: "Airhorn" }));
 
-    expect(player.play).toHaveBeenCalledWith(airhornPad.audioBlob);
+    expect(player.play).toHaveBeenCalledWith(airhornPad.audioBlob, {
+      volume: 100,
+    });
   });
 
   it("adds a new pad from the editor form", async () => {

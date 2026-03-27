@@ -10,8 +10,12 @@ The project is currently built with Next.js and deployed to Cloudflare Workers t
 - Board creation, inline renaming, and deletion
 - Confirmation before deleting boards that still contain pads
 - Pad creation, editing, deletion, and manual reordering
+- Dedicated settings dialog for playback behavior and browser output state
+- Default pad volume plus per-pad volume overrides
 - Local audio file upload with browser-side validation
 - Browser-native audio playback with optional concurrent playback
+- Optional `Stop All` control for currently active playback
+- Progressive-enhancement audio output routing where browser support exists
 - Inspector workflow that keeps editing in-page instead of navigating away
 - IndexedDB persistence for boards, pads, settings, and audio blobs
 
@@ -115,6 +119,8 @@ This project is intended to work on current desktop releases of:
 
 Mobile browsers are best-effort only. Because the app depends on IndexedDB, `Blob` storage, and browser-managed audio playback, quota limits and playback policies can still vary by browser version and device.
 
+Audio output device routing is treated as a progressive enhancement feature. The settings UI is available everywhere, but choosing a specific output device depends on browser support for related media APIs and may still require a secure context and direct user interaction.
+
 If you find a browser-specific issue, open a bug report and include the exact browser version and operating system.
 
 ## Deployment
@@ -170,6 +176,16 @@ Persistent data is stored in IndexedDB through `lib/soundboard/db.ts`. The main 
 - `settings`
 
 Uploaded audio files are stored as `Blob` values in IndexedDB. Persistence is intentionally scoped to the same browser on the same device. There is no built-in sync across devices or browsers.
+
+Persisted settings currently include:
+
+- active board selection
+- concurrent playback mode
+- default pad volume
+- `Stop All` button visibility
+- preferred audio output device metadata when supported
+
+Pads may also store a pad-specific `volumeOverride` value. When it is `null`, the pad falls back to the global default volume.
 
 Browser storage limits still apply. Large or numerous audio files may eventually hit quota limits depending on the browser.
 

@@ -38,7 +38,9 @@ function normalizePadRecord(record: SoundboardPad): SoundboardPad {
 }
 
 function toPublicSettings(record: SettingsRecord): SoundboardSettings {
-  const { key: _key, ...settings } = record;
+  const { key, ...settings } = record;
+
+  void key;
 
   return settings;
 }

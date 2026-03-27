@@ -13,8 +13,11 @@ The current application supports:
 - Multiple sound boards
 - Board creation, renaming, and deletion
 - Pad creation, editing, deletion, and manual reordering
+- Dedicated settings dialog for playback controls
 - Local audio file uploads stored in-browser
 - Optional concurrent playback
+- Default pad volume plus per-pad volume overrides
+- Optional `Stop All` control for active playback
 - Restoration of the last active board and saved pads on reload
 
 The current scope intentionally excludes:
@@ -53,7 +56,7 @@ The app persists:
 - board metadata
 - pad metadata
 - uploaded audio files as `Blob` values
-- global settings such as the active board and concurrent playback mode
+- global settings such as the active board, concurrent playback mode, default pad volume, `Stop All` visibility, and preferred output-device metadata
 
 Persistence is scoped to the same browser on the same device. Data is not expected to transfer across browsers or devices.
 
@@ -90,6 +93,7 @@ Each pad stores:
 - `audioBlob`
 - `audioName`
 - `mimeType`
+- `volumeOverride`
 - `order`
 - `createdAt`
 - `updatedAt`
@@ -100,6 +104,8 @@ Current pad rules:
 - Empty or whitespace-only pad names are invalid
 - Pad names are capped at 12 characters in the UI
 - Uploaded files must be browser-reported `audio/*` types
+- `volumeOverride = null` means use the global default pad volume
+- a numeric `volumeOverride` is the pad's final playback volume
 
 ## UI Structure
 
@@ -113,9 +119,15 @@ The current UI is organized into three main areas:
   - active board header
   - board rename and delete actions
   - sound pad grid
+- Settings dialog
+  - default pad volume
+  - concurrent playback
+  - `Stop All` visibility
+  - audio output support state
 - Inspector panel
   - pad creation and editing
   - color and audio selection
+  - pad-level volume override
   - reorder and delete controls for existing pads
 
 The inspector is always present. Unsaved pad edits are guarded before switching to another editing target.
@@ -129,7 +141,11 @@ The playback module supports:
 - single sound playback
 - concurrent playback when enabled
 - stopping previous playback when concurrent mode is disabled
+- effective volume resolution from `pad.volumeOverride ?? settings.defaultPadVolume`
+- optional `Stop All` cleanup through the active player set
 - cleanup of object URLs after playback ends or fails
+
+Audio output routing is progressive enhancement only. When browser support exists, the runtime can route playback to a chosen device. Otherwise, the app falls back to the system default output while still exposing the state in the settings UI.
 
 ## Deployment Notes
 
