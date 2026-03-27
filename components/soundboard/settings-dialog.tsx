@@ -6,23 +6,35 @@ type SettingsDialogProps = {
   open: boolean;
   settings: Pick<
     SoundboardSettings,
-    "defaultPadVolume" | "allowConcurrentPlayback" | "showStopAllButton" | "preferredOutputDeviceLabel"
+    | "defaultPadVolume"
+    | "allowConcurrentPlayback"
+    | "showStopAllButton"
+    | "preferredOutputDeviceId"
+    | "preferredOutputDeviceLabel"
   >;
   audioOutputSupported: boolean;
+  isChoosingAudioOutput: boolean;
+  audioOutputError: string | null;
   onClose(): void;
   onDefaultPadVolumeChange(value: number): void;
   onAllowConcurrentPlaybackChange(value: boolean): void;
   onShowStopAllButtonChange(value: boolean): void;
+  onChooseAudioOutput(): void;
+  onResetAudioOutput(): void;
 };
 
 export function SettingsDialog({
   open,
   settings,
   audioOutputSupported,
+  isChoosingAudioOutput,
+  audioOutputError,
   onClose,
   onDefaultPadVolumeChange,
   onAllowConcurrentPlaybackChange,
   onShowStopAllButtonChange,
+  onChooseAudioOutput,
+  onResetAudioOutput,
 }: SettingsDialogProps) {
   if (!open) {
     return null;
@@ -138,18 +150,35 @@ export function SettingsDialog({
 
             {audioOutputSupported ? (
               <div className="mt-4 flex flex-col gap-3 text-sm text-[var(--color-muted)]">
-                <p>System Default</p>
                 <p>
-                  {settings.preferredOutputDeviceLabel ??
-                    "No preferred device saved yet."}
+                  {settings.preferredOutputDeviceLabel
+                    ? `Selected output: ${settings.preferredOutputDeviceLabel}`
+                    : "System Default"}
                 </p>
-                <button
-                  className="w-fit rounded-full border border-[var(--color-line)] px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition-colors duration-200 hover:bg-white/80"
-                  disabled
-                  type="button"
-                >
-                  Choose Device...
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className="w-fit rounded-full border border-[var(--color-line)] px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition-colors duration-200 hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={isChoosingAudioOutput}
+                    onClick={onChooseAudioOutput}
+                    type="button"
+                  >
+                    {isChoosingAudioOutput ? "Choosing..." : "Choose Device..."}
+                  </button>
+                  {settings.preferredOutputDeviceId ? (
+                    <button
+                      className="w-fit rounded-full border border-[var(--color-line)] px-4 py-2 text-sm font-medium text-[var(--color-muted)] transition-colors duration-200 hover:bg-white/80"
+                      onClick={onResetAudioOutput}
+                      type="button"
+                    >
+                      Use System Default
+                    </button>
+                  ) : null}
+                </div>
+                {audioOutputError ? (
+                  <p className="rounded-2xl border border-[rgba(217,91,67,0.22)] bg-[rgba(217,91,67,0.08)] p-4 text-sm leading-6 text-[var(--color-ink)]">
+                    {audioOutputError}
+                  </p>
+                ) : null}
               </div>
             ) : (
               <div className="mt-4 rounded-2xl border border-[rgba(217,91,67,0.22)] bg-[rgba(217,91,67,0.08)] p-4 text-sm leading-6 text-[var(--color-ink)]">

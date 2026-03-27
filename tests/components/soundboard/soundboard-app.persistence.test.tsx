@@ -49,7 +49,7 @@ async function setPadVolume(
   user: ReturnType<typeof userEvent.setup>,
   volume: string,
 ) {
-  await user.click(screen.getByRole("button", { name: /edit airhorn/i }));
+  await user.click(await screen.findByRole("button", { name: /edit airhorn/i }));
   await user.click(screen.getByRole("checkbox", { name: /use default volume/i }));
   fireEvent.change(screen.getByRole("slider", { name: /pad volume/i }), {
     target: { value: volume },

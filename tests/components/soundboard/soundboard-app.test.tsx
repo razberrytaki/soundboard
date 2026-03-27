@@ -13,11 +13,14 @@ import type {
 
 const audioOutputSupport = vi.hoisted(() => ({
   supported: true,
+  selectAudioOutput: vi.fn(),
 }));
 
 vi.mock("@/lib/soundboard/audio-output", () => ({
   supportsAudioOutputSelection: () => audioOutputSupport.supported,
   supportsAudioOutputRouting: () => true,
+  selectAudioOutput: (options?: { deviceId?: string | null }) =>
+    audioOutputSupport.selectAudioOutput(options),
 }));
 
 function createRepositoryFixture({
@@ -170,6 +173,7 @@ function createPad(overrides: Partial<SoundboardPad>): SoundboardPad {
 
 afterEach(() => {
   audioOutputSupport.supported = true;
+  audioOutputSupport.selectAudioOutput.mockReset();
   vi.clearAllMocks();
 });
 
@@ -361,6 +365,91 @@ describe("SoundboardApp", () => {
     expect(
       await screen.findByText(/audio output selection is not supported in this browser/i),
     ).toBeInTheDocument();
+  });
+
+  it("saves a chosen audio output device from the settings dialog", async () => {
+    const user = userEvent.setup();
+    audioOutputSupport.selectAudioOutput.mockResolvedValue({
+      deviceId: "speaker-1",
+      label: "Desk Speakers",
+    });
+    const repository = createRepositoryFixture({
+      boards: [
+        {
+          id: "board-1",
+          name: "Stream",
+          order: 1,
+          createdAt: "2026-03-24T00:00:00.000Z",
+          updatedAt: "2026-03-24T00:00:00.000Z",
+        },
+      ],
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await user.click(await screen.findByRole("button", { name: /settings/i }));
+    await user.click(screen.getByRole("button", { name: /choose device/i }));
+
+    await waitFor(() => {
+      expect(audioOutputSupport.selectAudioOutput).toHaveBeenCalledWith({
+        deviceId: null,
+      });
+    });
+    expect(repository.updateSettings).toHaveBeenCalledWith({
+      preferredOutputDeviceId: "speaker-1",
+      preferredOutputDeviceLabel: "Desk Speakers",
+    });
+  });
+
+  it("clears the preferred audio output device back to system default", async () => {
+    const user = userEvent.setup();
+    const repository = createRepositoryFixture({
+      boards: [
+        {
+          id: "board-1",
+          name: "Stream",
+          order: 1,
+          createdAt: "2026-03-24T00:00:00.000Z",
+          updatedAt: "2026-03-24T00:00:00.000Z",
+        },
+      ],
+      padsByBoardId: {},
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+        preferredOutputDeviceId: "speaker-1",
+        preferredOutputDeviceLabel: "Desk Speakers",
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await user.click(await screen.findByRole("button", { name: /settings/i }));
+    await user.click(screen.getByRole("button", { name: /use system default/i }));
+
+    await waitFor(() => {
+      expect(repository.updateSettings).toHaveBeenCalledWith({
+        preferredOutputDeviceId: null,
+        preferredOutputDeviceLabel: null,
+      });
+    });
   });
 
   it("shows the stop all button only when enabled", async () => {
@@ -1083,6 +1172,48 @@ describe("SoundboardApp", () => {
     await user.click(await screen.findByRole("button", { name: "Airhorn" }));
 
     expect(player.play).toHaveBeenCalledWith(airhornPad.audioBlob, {
+      outputDeviceId: null,
+      volume: 100,
+    });
+  });
+
+  it("passes the preferred output device id into playback", async () => {
+    const user = userEvent.setup();
+    const boards: SoundboardBoard[] = [
+      {
+        id: "board-1",
+        name: "Stream",
+        order: 1,
+        createdAt: "2026-03-24T00:00:00.000Z",
+        updatedAt: "2026-03-24T00:00:00.000Z",
+      },
+    ];
+    const airhornPad = createPad({ boardId: "board-1", label: "Airhorn" });
+    const repository = createRepositoryFixture({
+      boards,
+      padsByBoardId: {
+        "board-1": [airhornPad],
+      },
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+        preferredOutputDeviceId: "speaker-1",
+        preferredOutputDeviceLabel: "Desk Speakers",
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await user.click(await screen.findByRole("button", { name: "Airhorn" }));
+
+    expect(player.play).toHaveBeenCalledWith(airhornPad.audioBlob, {
+      outputDeviceId: "speaker-1",
       volume: 100,
     });
   });

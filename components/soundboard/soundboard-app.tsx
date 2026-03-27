@@ -7,7 +7,10 @@ import { PadEditor } from "@/components/soundboard/pad-editor";
 import { PadGrid } from "@/components/soundboard/pad-grid";
 import { SettingsDialog } from "@/components/soundboard/settings-dialog";
 import { createAudioPlayer } from "@/lib/soundboard/audio-player";
-import { supportsAudioOutputSelection } from "@/lib/soundboard/audio-output";
+import {
+  selectAudioOutput,
+  supportsAudioOutputSelection,
+} from "@/lib/soundboard/audio-output";
 import { createSoundboardDb } from "@/lib/soundboard/db";
 import type {
   SoundboardBoard,
@@ -66,6 +69,8 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [loading, setLoading] = useState(true);
   const [audioOutputSupported] = useState(() => supportsAudioOutputSelection());
+  const [isChoosingAudioOutput, setIsChoosingAudioOutput] = useState(false);
+  const [audioOutputError, setAudioOutputError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -411,8 +416,44 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     });
   };
 
+  const handleChooseAudioOutput = async () => {
+    setAudioOutputError(null);
+    setIsChoosingAudioOutput(true);
+
+    try {
+      const selection = await selectAudioOutput({
+        deviceId: settings?.preferredOutputDeviceId ?? null,
+      });
+
+      await updateSettings({
+        preferredOutputDeviceId: selection.deviceId,
+        preferredOutputDeviceLabel:
+          selection.label || "Selected output device",
+      });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+
+      setAudioOutputError(
+        "Couldn't choose an audio output device. The app will keep using the system default output device.",
+      );
+    } finally {
+      setIsChoosingAudioOutput(false);
+    }
+  };
+
+  const handleResetAudioOutput = async () => {
+    setAudioOutputError(null);
+    await updateSettings({
+      preferredOutputDeviceId: null,
+      preferredOutputDeviceLabel: null,
+    });
+  };
+
   const handlePlay = async (pad: SoundboardPad) => {
     await playerInstance.play(pad.audioBlob, {
+      outputDeviceId: settings?.preferredOutputDeviceId ?? null,
       volume: pad.volumeOverride ?? settings?.defaultPadVolume ?? 100,
     });
   };
@@ -582,7 +623,10 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
           </header>
 
           <SettingsDialog
+            audioOutputError={audioOutputError}
             audioOutputSupported={audioOutputSupported}
+            isChoosingAudioOutput={isChoosingAudioOutput}
+            onChooseAudioOutput={() => void handleChooseAudioOutput()}
             open={isSettingsDialogOpen}
             onAllowConcurrentPlaybackChange={(value) =>
               void handleConcurrentPlaybackToggle(value)
@@ -591,12 +635,15 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
             onDefaultPadVolumeChange={(value) =>
               void handleDefaultPadVolumeChange(value)
             }
+            onResetAudioOutput={() => void handleResetAudioOutput()}
             onShowStopAllButtonChange={(value) =>
               void handleShowStopAllButtonChange(value)
             }
             settings={{
               allowConcurrentPlayback: settings?.allowConcurrentPlayback ?? true,
               defaultPadVolume: settings?.defaultPadVolume ?? 100,
+              preferredOutputDeviceId:
+                settings?.preferredOutputDeviceId ?? null,
               preferredOutputDeviceLabel:
                 settings?.preferredOutputDeviceLabel ?? null,
               showStopAllButton: settings?.showStopAllButton ?? true,
