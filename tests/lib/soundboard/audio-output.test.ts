@@ -41,7 +41,7 @@ describe("audio output support helpers", () => {
     });
   });
 
-  it("lists only audio output devices", async () => {
+  it("lists only selectable audio output devices", async () => {
     vi.stubGlobal("navigator", {
       mediaDevices: {
         enumerateDevices: vi.fn(async () => [
@@ -53,7 +53,29 @@ describe("audio output support helpers", () => {
     });
 
     await expect(listAudioOutputDevices()).resolves.toEqual([
-      { deviceId: "default", label: "System Default" },
+      { deviceId: "speaker-1", label: "Desk Speakers" },
+    ]);
+  });
+
+  it("omits default-only output entries from the selectable device list", async () => {
+    vi.stubGlobal("navigator", {
+      mediaDevices: {
+        enumerateDevices: vi.fn(async () => [
+          { deviceId: "", kind: "audioinput", label: "" },
+          { deviceId: "", kind: "videoinput", label: "" },
+          { deviceId: "", kind: "audiooutput", label: "" },
+          { deviceId: "default", kind: "audiooutput", label: "System Default" },
+          {
+            deviceId: "communications",
+            kind: "audiooutput",
+            label: "Communications",
+          },
+          { deviceId: "speaker-1", kind: "audiooutput", label: "Desk Speakers" },
+        ]),
+      },
+    });
+
+    await expect(listAudioOutputDevices()).resolves.toEqual([
       { deviceId: "speaker-1", label: "Desk Speakers" },
     ]);
   });

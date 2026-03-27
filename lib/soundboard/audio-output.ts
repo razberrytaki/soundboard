@@ -46,6 +46,8 @@ export type AudioOutputDevice = {
   label: string;
 };
 
+const NON_SELECTABLE_OUTPUT_DEVICE_IDS = new Set(["", "default", "communications"]);
+
 function getNavigator() {
   return globalThis.navigator as NavigatorWithAudioOutputSelection | undefined;
 }
@@ -89,7 +91,11 @@ export async function listAudioOutputDevices() {
   }
 
   const devices = await mediaDevices.enumerateDevices();
-  const outputDevices = devices.filter((device) => device.kind === "audiooutput");
+  const outputDevices = devices.filter(
+    (device) =>
+      device.kind === "audiooutput" &&
+      !NON_SELECTABLE_OUTPUT_DEVICE_IDS.has(device.deviceId),
+  );
 
   return outputDevices.map((device, index) => ({
     deviceId: device.deviceId,
