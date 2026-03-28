@@ -51,9 +51,13 @@ describe("PadCard", () => {
       name: /edit very long pad name/i,
     });
     expect(editAction).toHaveClass("opacity-0");
+    expect(editAction).toHaveClass("pointer-events-none");
+    expect(editAction).toHaveClass("peer-hover:pointer-events-auto");
     expect(editAction).toHaveClass("peer-hover:opacity-100");
     expect(editAction).toHaveClass("peer-hover:-translate-y-1");
     expect(editAction).toHaveClass("peer-focus-visible:-translate-y-1");
+    expect(editAction).not.toHaveClass("hover:opacity-100");
+    expect(editAction).not.toHaveClass("hover:-translate-y-1");
   });
 
   it("renders edit as a lightweight text action instead of a pill button", async () => {
