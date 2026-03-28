@@ -359,19 +359,15 @@ export function PadEditor({
           >
             Save Pad
           </button>
-          <div className="grid grid-cols-2 gap-2">
-            {mode === "edit" ? (
-              <button
-                className="rounded-full border border-[rgba(217,91,67,0.3)] bg-[rgba(217,91,67,0.12)] px-4 py-3 text-sm text-[var(--color-ink)] transition-colors hover:bg-[rgba(217,91,67,0.18)]"
-                onClick={onDelete}
-                type="button"
-              >
-                Delete Pad
-              </button>
-            ) : (
-              <div className="col-span-2" />
-            )}
-          </div>
+          {mode === "edit" ? (
+            <button
+              className="w-full rounded-full border border-[rgba(217,91,67,0.3)] bg-[rgba(217,91,67,0.12)] px-4 py-3 text-sm text-[var(--color-ink)] transition-colors hover:bg-[rgba(217,91,67,0.18)]"
+              onClick={onDelete}
+              type="button"
+            >
+              Delete Pad
+            </button>
+          ) : null}
         </div>
       </div>
     </aside>

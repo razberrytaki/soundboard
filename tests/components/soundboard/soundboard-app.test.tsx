@@ -1802,6 +1802,40 @@ describe("SoundboardApp", () => {
     ).toBeInTheDocument();
   });
 
+  it("disables New Pad while manage pads is active", async () => {
+    const user = userEvent.setup();
+    const repository = createRepositoryFixture({
+      boards: [
+        {
+          id: "board-1",
+          name: "Stream",
+          order: 1,
+          createdAt: "2026-03-24T00:00:00.000Z",
+          updatedAt: "2026-03-24T00:00:00.000Z",
+        },
+      ],
+      padsByBoardId: {
+        "board-1": [createPad({ id: "pad-1", boardId: "board-1", label: "Airhorn" })],
+      },
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await enterManagePads(user);
+
+    expect(screen.getByRole("button", { name: /new pad/i })).toBeDisabled();
+  });
+
   it("prompts before discarding a dirty draft when switching boards", async () => {
     const user = userEvent.setup();
     const boards: SoundboardBoard[] = [

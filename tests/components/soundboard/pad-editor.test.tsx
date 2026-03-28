@@ -191,4 +191,15 @@ describe("PadEditor", () => {
       volume: 65,
     });
   });
+
+  it("renders Delete Pad as a full-width action in edit mode", () => {
+    renderPadEditor({
+      mode: "edit",
+      pad: createPad(),
+    });
+
+    expect(screen.getByRole("button", { name: /delete pad/i })).toHaveClass(
+      "w-full",
+    );
+  });
 });

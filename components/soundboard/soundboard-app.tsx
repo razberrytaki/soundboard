@@ -210,6 +210,10 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
   };
 
   const openCreatePadEditor = () => {
+    if (isManagingPads) {
+      return;
+    }
+
     if (!canDiscardPadChanges()) {
       return;
     }
@@ -745,7 +749,8 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
                 {isManagingPads ? "Done" : "Manage Pads"}
               </button>
               <button
-                className="rounded-full bg-[var(--color-ink)] px-4 py-3 text-sm font-medium text-[var(--color-paper)] transition-transform duration-200 hover:-translate-y-0.5"
+                className="rounded-full bg-[var(--color-ink)] px-4 py-3 text-sm font-medium text-[var(--color-paper)] transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
+                disabled={isManagingPads}
                 onClick={openCreatePadEditor}
                 type="button"
               >
