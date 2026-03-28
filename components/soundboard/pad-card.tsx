@@ -24,7 +24,7 @@ export function PadCard({ pad, onEdit, onPlay }: PadCardProps) {
       </button>
       <button
         aria-label={`Edit ${pad.label}`}
-        className="pointer-events-none absolute right-3 top-3 px-1 py-1 font-[family-name:var(--font-mono)] text-[0.65rem] uppercase tracking-[0.18em] text-white/72 opacity-0 transition-[opacity,transform,color] duration-200 peer-hover:pointer-events-auto peer-hover:-translate-y-1 peer-hover:opacity-100 peer-hover:text-white peer-focus-visible:pointer-events-auto peer-focus-visible:-translate-y-1 peer-focus-visible:opacity-100 peer-focus-visible:text-white"
+        className="pointer-events-none absolute right-3 top-3 px-1 py-1 font-[family-name:var(--font-mono)] text-[0.65rem] uppercase tracking-[0.18em] text-white/72 opacity-0 transition-[opacity,transform,color] duration-200 hover:pointer-events-auto hover:opacity-100 hover:text-white focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:text-white peer-hover:pointer-events-auto peer-hover:-translate-y-1 peer-hover:opacity-100 peer-hover:text-white peer-focus-visible:pointer-events-auto peer-focus-visible:-translate-y-1 peer-focus-visible:opacity-100 peer-focus-visible:text-white"
         onClick={() => onEdit(pad)}
         type="button"
       >

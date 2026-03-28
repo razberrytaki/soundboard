@@ -56,7 +56,9 @@ describe("PadCard", () => {
     expect(editAction).toHaveClass("peer-hover:opacity-100");
     expect(editAction).toHaveClass("peer-hover:-translate-y-1");
     expect(editAction).toHaveClass("peer-focus-visible:-translate-y-1");
-    expect(editAction).not.toHaveClass("hover:opacity-100");
+    expect(editAction).toHaveClass("hover:pointer-events-auto");
+    expect(editAction).toHaveClass("hover:opacity-100");
+    expect(editAction).toHaveClass("hover:text-white");
     expect(editAction).not.toHaveClass("hover:-translate-y-1");
   });
 
