@@ -46,8 +46,10 @@ describe("PadCard", () => {
     );
 
     expect(screen.getByText("Play")).toHaveClass("opacity-0");
-    expect(screen.getByText("Play")).toHaveClass("group-hover:opacity-100");
-    expect(screen.getByText("Play")).toHaveClass("group-focus-visible:opacity-100");
+    expect(screen.getByText("Play")).toHaveClass("group-hover/pad:opacity-100");
+    expect(screen.getByText("Play")).toHaveClass(
+      "group-focus-visible/pad:opacity-100",
+    );
   });
 
   it("shows an edit pill inside the pad instead of a separate edit button", async () => {
@@ -61,7 +63,11 @@ describe("PadCard", () => {
       name: /edit very long pad name/i,
     });
     expect(editAction).toHaveClass("opacity-0");
-    expect(editAction).toHaveClass("group-hover:opacity-100");
+    expect(editAction).toHaveClass("peer-hover:opacity-100");
+    expect(editAction).toHaveClass("hover:opacity-100");
+    expect(editAction).toHaveClass("px-2");
+    expect(editAction).toHaveClass("py-1");
+    expect(editAction).toHaveClass("text-[0.65rem]");
 
     await user.click(editAction);
 
