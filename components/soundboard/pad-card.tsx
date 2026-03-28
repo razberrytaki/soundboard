@@ -17,9 +17,6 @@ export function PadCard({ pad, onEdit, onPlay }: PadCardProps) {
         type="button"
       >
         <div className="relative flex h-full items-center justify-center rounded-[18px] p-3 text-center text-white shadow-inner [background:linear-gradient(145deg,var(--pad-color),color-mix(in_srgb,var(--pad-color)_62%,white))]">
-          <span className="pointer-events-none absolute left-3 top-3 font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.22em] text-white/72 opacity-0 transition-opacity duration-200 group-hover/pad:opacity-100 group-focus-visible/pad:opacity-100">
-            Play
-          </span>
           <span className="line-clamp-2 text-center text-lg font-semibold tracking-[-0.03em]">
             {pad.label}
           </span>
@@ -27,7 +24,7 @@ export function PadCard({ pad, onEdit, onPlay }: PadCardProps) {
       </button>
       <button
         aria-label={`Edit ${pad.label}`}
-        className="absolute right-3 top-3 rounded-full border border-white/24 bg-[rgba(24,18,14,0.52)] px-2 py-1 text-[0.65rem] font-medium uppercase tracking-[0.12em] text-white opacity-0 transition-opacity duration-200 hover:bg-[rgba(24,18,14,0.7)] hover:opacity-100 focus-visible:opacity-100 peer-hover:opacity-100 peer-focus-visible:opacity-100"
+        className="absolute right-3 top-3 px-1 py-1 font-[family-name:var(--font-mono)] text-[0.65rem] uppercase tracking-[0.18em] text-white/72 opacity-0 transition-[opacity,transform,color] duration-200 hover:-translate-y-1 hover:opacity-100 hover:text-white focus-visible:-translate-y-1 focus-visible:opacity-100 focus-visible:text-white peer-hover:-translate-y-1 peer-hover:opacity-100 peer-hover:text-white peer-focus-visible:-translate-y-1 peer-focus-visible:opacity-100 peer-focus-visible:text-white"
         onClick={() => onEdit(pad)}
         type="button"
       >

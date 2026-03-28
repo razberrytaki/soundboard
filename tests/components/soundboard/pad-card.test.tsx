@@ -36,7 +36,7 @@ describe("PadCard", () => {
     expect(screen.getByText("Very Long Pad Name")).toHaveClass("text-center");
   });
 
-  it("only reveals the play label on hover or focus", () => {
+  it("uses a single edit action label instead of a separate play label", () => {
     render(
       <PadCard
         onEdit={vi.fn()}
@@ -45,14 +45,18 @@ describe("PadCard", () => {
       />,
     );
 
-    expect(screen.getByText("Play")).toHaveClass("opacity-0");
-    expect(screen.getByText("Play")).toHaveClass("group-hover/pad:opacity-100");
-    expect(screen.getByText("Play")).toHaveClass(
-      "group-focus-visible/pad:opacity-100",
-    );
+    expect(screen.queryByText("Play")).not.toBeInTheDocument();
+
+    const editAction = screen.getByRole("button", {
+      name: /edit very long pad name/i,
+    });
+    expect(editAction).toHaveClass("opacity-0");
+    expect(editAction).toHaveClass("peer-hover:opacity-100");
+    expect(editAction).toHaveClass("peer-hover:-translate-y-1");
+    expect(editAction).toHaveClass("peer-focus-visible:-translate-y-1");
   });
 
-  it("shows an edit pill inside the pad instead of a separate edit button", async () => {
+  it("renders edit as a lightweight text action instead of a pill button", async () => {
     const user = userEvent.setup();
     const onEdit = vi.fn();
     const onPlay = vi.fn();
@@ -62,12 +66,12 @@ describe("PadCard", () => {
     const editAction = screen.getByRole("button", {
       name: /edit very long pad name/i,
     });
-    expect(editAction).toHaveClass("opacity-0");
-    expect(editAction).toHaveClass("peer-hover:opacity-100");
-    expect(editAction).toHaveClass("hover:opacity-100");
-    expect(editAction).toHaveClass("px-2");
-    expect(editAction).toHaveClass("py-1");
+    expect(editAction).toHaveClass("font-[family-name:var(--font-mono)]");
     expect(editAction).toHaveClass("text-[0.65rem]");
+    expect(editAction).toHaveClass("text-white/72");
+    expect(editAction).not.toHaveClass("rounded-full");
+    expect(editAction).not.toHaveClass("border");
+    expect(editAction).not.toHaveClass("bg-[rgba(24,18,14,0.52)]");
 
     await user.click(editAction);
 
