@@ -3,12 +3,20 @@ import type { SoundboardPad } from "@/lib/soundboard/types";
 import { PadCard } from "@/components/soundboard/pad-card";
 
 type PadGridProps = {
+  isManaging: boolean;
   pads: SoundboardPad[];
-  onEdit(pad: SoundboardPad): void;
   onPlay(pad: SoundboardPad): void;
+  onSelect(pad: SoundboardPad): void;
+  selectedPadId: string | null;
 };
 
-export function PadGrid({ pads, onEdit, onPlay }: PadGridProps) {
+export function PadGrid({
+  isManaging,
+  pads,
+  onPlay,
+  onSelect,
+  selectedPadId,
+}: PadGridProps) {
   if (pads.length === 0) {
     return (
       <div className="rounded-[28px] border border-dashed border-[var(--color-line)] bg-[rgba(255,255,255,0.42)] px-6 py-10 text-center">
@@ -28,7 +36,14 @@ export function PadGrid({ pads, onEdit, onPlay }: PadGridProps) {
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
       {pads.map((pad) => (
-        <PadCard key={pad.id} onEdit={onEdit} onPlay={onPlay} pad={pad} />
+        <PadCard
+          isManaging={isManaging}
+          isSelected={selectedPadId === pad.id}
+          key={pad.id}
+          onPlay={onPlay}
+          onSelect={onSelect}
+          pad={pad}
+        />
       ))}
     </div>
   );

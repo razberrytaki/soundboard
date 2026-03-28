@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { PadCard } from "@/components/soundboard/pad-card";
 import type { SoundboardPad } from "@/lib/soundboard/types";
@@ -23,15 +23,13 @@ function createPad(overrides: Partial<SoundboardPad> = {}): SoundboardPad {
 }
 
 describe("PadCard", () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   it("centers the pad name and clamps it to two lines", () => {
     render(
       <PadCard
-        onEdit={vi.fn()}
+        isManaging={false}
+        isSelected={false}
         onPlay={vi.fn()}
+        onSelect={vi.fn()}
         pad={createPad()}
       />,
     );
@@ -40,106 +38,88 @@ describe("PadCard", () => {
     expect(screen.getByText("Very Long Pad Name")).toHaveClass("text-center");
   });
 
-  it("renders a passive-looking EDIT label plus a separate edit button", () => {
+  it("plays immediately in play mode", async () => {
+    const user = userEvent.setup();
+    const onPlay = vi.fn();
+    const onSelect = vi.fn();
+
     render(
       <PadCard
-        onEdit={vi.fn()}
-        onPlay={vi.fn()}
+        isManaging={false}
+        isSelected={false}
+        onPlay={onPlay}
+        onSelect={onSelect}
         pad={createPad()}
       />,
     );
 
-    expect(screen.queryByText("Play")).not.toBeInTheDocument();
-    const editLabel = screen.getByText("Edit");
-    expect(editLabel.parentElement).toHaveClass("pointer-events-none");
-    expect(editLabel).toHaveClass("font-[family-name:var(--font-mono)]");
+    await user.click(
+      screen.getByRole("button", { name: /^very long pad name$/i }),
+    );
 
-    const editAction = screen.getByRole("button", {
-      name: /edit very long pad name/i,
-    });
-    expect(editAction).toHaveClass("absolute");
-    expect(editAction).toHaveClass("right-3");
-    expect(editAction).toHaveClass("top-2");
-    expect(editAction).toHaveClass("h-8");
-    expect(editAction).toHaveClass("w-20");
+    expect(onPlay).toHaveBeenCalledTimes(1);
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
-  it("clicking the edit hit area edits without playing", async () => {
+  it("selects without playing on the first click in manage mode", async () => {
     const user = userEvent.setup();
-    const onEdit = vi.fn();
     const onPlay = vi.fn();
+    const onSelect = vi.fn();
 
-    render(<PadCard onEdit={onEdit} onPlay={onPlay} pad={createPad()} />);
+    render(
+      <PadCard
+        isManaging
+        isSelected={false}
+        onPlay={onPlay}
+        onSelect={onSelect}
+        pad={createPad()}
+      />,
+    );
 
-    const editAction = screen.getByRole("button", {
-      name: /edit very long pad name/i,
-    });
+    await user.click(
+      screen.getByRole("button", { name: /^very long pad name$/i }),
+    );
 
-    await user.click(editAction);
-
-    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onPlay).not.toHaveBeenCalled();
   });
 
-  it("supports keyboard focus on the edit hit area", async () => {
+  it("plays on click when the pad is already selected in manage mode", async () => {
     const user = userEvent.setup();
+    const onPlay = vi.fn();
+    const onSelect = vi.fn();
 
     render(
       <PadCard
-        onEdit={vi.fn()}
-        onPlay={vi.fn()}
+        isManaging
+        isSelected
+        onPlay={onPlay}
+        onSelect={onSelect}
         pad={createPad()}
       />,
     );
 
-    await user.tab();
+    await user.click(
+      screen.getByRole("button", { name: /^very long pad name$/i }),
+    );
+
+    expect(onPlay).toHaveBeenCalledTimes(1);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("visually emphasizes the selected pad in manage mode", () => {
+    render(
+      <PadCard
+        isManaging
+        isSelected
+        onPlay={vi.fn()}
+        onSelect={vi.fn()}
+        pad={createPad()}
+      />,
+    );
+
     expect(
       screen.getByRole("button", { name: /^very long pad name$/i }),
-    ).toHaveFocus();
-
-    await user.tab();
-    expect(
-      screen.getByRole("button", { name: /edit very long pad name/i }),
-    ).toHaveFocus();
-  });
-
-  it("opens edit on touch long press without playing", () => {
-    vi.useFakeTimers();
-    const onEdit = vi.fn();
-    const onPlay = vi.fn();
-
-    render(<PadCard onEdit={onEdit} onPlay={onPlay} pad={createPad()} />);
-
-    const padButton = screen.getByRole("button", {
-      name: /^very long pad name$/i,
-    });
-
-    fireEvent.pointerDown(padButton, { pointerType: "touch" });
-    vi.advanceTimersByTime(450);
-    fireEvent.pointerUp(padButton, { pointerType: "touch" });
-    fireEvent.click(padButton);
-
-    expect(onEdit).toHaveBeenCalledTimes(1);
-    expect(onPlay).not.toHaveBeenCalled();
-  });
-
-  it("still plays on a short touch tap", () => {
-    vi.useFakeTimers();
-    const onEdit = vi.fn();
-    const onPlay = vi.fn();
-
-    render(<PadCard onEdit={onEdit} onPlay={onPlay} pad={createPad()} />);
-
-    const padButton = screen.getByRole("button", {
-      name: /^very long pad name$/i,
-    });
-
-    fireEvent.pointerDown(padButton, { pointerType: "touch" });
-    vi.advanceTimersByTime(200);
-    fireEvent.pointerUp(padButton, { pointerType: "touch" });
-    fireEvent.click(padButton);
-
-    expect(onEdit).not.toHaveBeenCalled();
-    expect(onPlay).toHaveBeenCalledTimes(1);
+    ).toHaveClass("ring-2");
   });
 });

@@ -65,6 +65,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     draftName: string;
   } | null>(null);
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
+  const [isManagingPads, setIsManagingPads] = useState(false);
   const [editorState, setEditorState] = useState<
     { mode: "create" } | { mode: "edit"; padId: string } | null
   >(null);
@@ -185,6 +186,8 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     editorState?.mode === "edit"
       ? pads.find((pad) => pad.id === editorState.padId) ?? null
       : null;
+  const selectedManagePadId =
+    isManagingPads && editorState?.mode === "edit" ? editorState.padId : null;
   const editedPadIndex = editedPad
     ? pads.findIndex((pad) => pad.id === editedPad.id)
     : -1;
@@ -195,6 +198,9 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     setEditorState(null);
   };
 
+  const canDiscardPadChanges = () =>
+    !hasUnsavedChanges || window.confirm(DISCARD_CHANGES_MESSAGE);
+
   const updateSettings = async (patch: Partial<SoundboardSettings>) => {
     const nextSettings = await repositoryInstance.updateSettings(patch);
 
@@ -203,27 +209,40 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     return nextSettings;
   };
 
-  const requestEditorStateChange = (
-    nextState: { mode: "create" } | { mode: "edit"; padId: string },
-  ) => {
+  const openCreatePadEditor = () => {
+    if (!canDiscardPadChanges()) {
+      return;
+    }
+
+    setIsManagingPads(false);
+    setCreateEditorVersion((current) => current + 1);
+    setHasUnsavedChanges(false);
+    setEditorState({ mode: "create" });
+  };
+
+  const toggleManagePads = () => {
+    if (!canDiscardPadChanges()) {
+      return;
+    }
+
+    setIsManagingPads((current) => !current);
+    resetPadEditor();
+  };
+
+  const selectPadForManagement = (pad: SoundboardPad) => {
     if (
       editorState?.mode === "edit" &&
-      nextState.mode === "edit" &&
-      editorState.padId === nextState.padId
+      editorState.padId === pad.id
     ) {
       return;
     }
 
-    if (hasUnsavedChanges && !window.confirm(DISCARD_CHANGES_MESSAGE)) {
+    if (!canDiscardPadChanges()) {
       return;
     }
 
-    if (nextState.mode === "create") {
-      setCreateEditorVersion((current) => current + 1);
-    }
-
     setHasUnsavedChanges(false);
-    setEditorState(nextState);
+    setEditorState({ mode: "edit", padId: pad.id });
   };
 
   const handleBoardSelect = async (boardId: string) => {
@@ -231,7 +250,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
       return;
     }
 
-    if (hasUnsavedChanges && !window.confirm(DISCARD_CHANGES_MESSAGE)) {
+    if (!canDiscardPadChanges()) {
       return;
     }
 
@@ -260,6 +279,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
 
     setBoards(nextBoards);
     setActiveBoardId(nextBoard.id);
+    setIsManagingPads(false);
     setPads([]);
     resetPadEditor();
     setBoardEditorState({
@@ -293,7 +313,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
         ? editedPad.order
         : Math.max(0, ...pads.map((pad) => pad.order)) + 1;
 
-    await repositoryInstance.savePad({
+    const savedPad = await repositoryInstance.savePad({
       id: value.id,
       boardId: activeBoardId,
       label: normalizePadName(value.label),
@@ -306,8 +326,14 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     });
 
     await refreshPads(activeBoardId);
-    setCreateEditorVersion((current) => current + 1);
     setHasUnsavedChanges(false);
+
+    if (isManagingPads && value.id) {
+      setEditorState({ mode: "edit", padId: savedPad.id });
+      return;
+    }
+
+    setCreateEditorVersion((current) => current + 1);
     setEditorState(null);
   };
 
@@ -449,6 +475,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     }
 
     if (nextBoards.length === 0) {
+      setIsManagingPads(false);
       setPads([]);
       resetPadEditor();
     }
@@ -546,6 +573,13 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     await playerInstance.play(pad.audioBlob, {
       outputDeviceId: settings?.preferredOutputDeviceId ?? null,
       volume: pad.volumeOverride ?? settings?.defaultPadVolume ?? 100,
+    });
+  };
+
+  const handlePreview = async (value: { audioBlob: Blob; volume: number }) => {
+    await playerInstance.play(value.audioBlob, {
+      outputDeviceId: settings?.preferredOutputDeviceId ?? null,
+      volume: value.volume,
     });
   };
 
@@ -704,8 +738,15 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
                 Settings
               </button>
               <button
+                className="rounded-full border border-[var(--color-line)] px-4 py-3 text-sm font-medium text-[var(--color-ink)] transition-colors duration-200 hover:bg-white/70"
+                onClick={toggleManagePads}
+                type="button"
+              >
+                {isManagingPads ? "Done" : "Manage Pads"}
+              </button>
+              <button
                 className="rounded-full bg-[var(--color-ink)] px-4 py-3 text-sm font-medium text-[var(--color-paper)] transition-transform duration-200 hover:-translate-y-0.5"
-                onClick={() => requestEditorStateChange({ mode: "create" })}
+                onClick={openCreatePadEditor}
                 type="button"
               >
                 New Pad
@@ -750,28 +791,47 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
 
           <div className="grid gap-6 px-5 py-5 md:grid-cols-[minmax(0,1fr)_320px] md:px-8 md:py-7">
             <PadGrid
-              onEdit={(pad) =>
-                requestEditorStateChange({ mode: "edit", padId: pad.id })
-              }
+              isManaging={isManagingPads}
               onPlay={(pad) => void handlePlay(pad)}
+              onSelect={selectPadForManagement}
               pads={pads}
+              selectedPadId={selectedManagePadId}
             />
-            <PadEditor
-              key={
-                editorState?.mode === "edit"
-                  ? editorState.padId
-                  : `${activeBoardId ?? "none"}-${createEditorVersion}`
-              }
-              canMoveDown={editedPadIndex >= 0 && editedPadIndex < pads.length - 1}
-              canMoveUp={editedPadIndex > 0}
-              mode={editorState?.mode ?? "create"}
-              onDirtyChange={setHasUnsavedChanges}
-              onDelete={() => void handleDeletePad()}
-              onMoveDown={() => void movePad(1)}
-              onMoveUp={() => void movePad(-1)}
-              onSave={handleEditorSave}
-              pad={editedPad}
-            />
+            {isManagingPads && editorState?.mode !== "edit" ? (
+              <aside className="rounded-[28px] border border-[var(--color-line)] bg-[rgba(255,255,255,0.56)] p-5">
+                <div className="space-y-3">
+                  <p className="font-[family-name:var(--font-mono)] text-[0.72rem] uppercase tracking-[0.28em] text-[var(--color-muted)]">
+                    Inspector
+                  </p>
+                  <h3 className="text-2xl font-semibold tracking-[-0.04em]">
+                    Select a pad to manage
+                  </h3>
+                  <p className="text-sm leading-6 text-[var(--color-muted)]">
+                    Click a pad to edit it. Click the same selected pad again to
+                    preview it, or use the Preview button after selecting one.
+                  </p>
+                </div>
+              </aside>
+            ) : (
+              <PadEditor
+                key={
+                  editorState?.mode === "edit"
+                    ? editorState.padId
+                    : `${activeBoardId ?? "none"}-${createEditorVersion}`
+                }
+                canMoveDown={editedPadIndex >= 0 && editedPadIndex < pads.length - 1}
+                canMoveUp={editedPadIndex > 0}
+                defaultPadVolume={settings?.defaultPadVolume ?? 100}
+                mode={editorState?.mode === "edit" ? "edit" : "create"}
+                onDelete={() => void handleDeletePad()}
+                onDirtyChange={setHasUnsavedChanges}
+                onMoveDown={() => void movePad(1)}
+                onMoveUp={() => void movePad(-1)}
+                onPreview={(value) => void handlePreview(value)}
+                onSave={handleEditorSave}
+                pad={editedPad}
+              />
+            )}
           </div>
         </section>
       </div>

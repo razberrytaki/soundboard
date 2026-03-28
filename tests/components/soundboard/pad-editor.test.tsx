@@ -29,24 +29,27 @@ function renderPadEditor(
   const onDelete = vi.fn();
   const onMoveDown = vi.fn();
   const onMoveUp = vi.fn();
+  const onPreview = vi.fn();
   const onSave = vi.fn(async () => undefined);
 
   render(
     <PadEditor
       canMoveDown={false}
       canMoveUp={false}
+      defaultPadVolume={100}
       mode="create"
       onDelete={onDelete}
       onDirtyChange={onDirtyChange}
       onMoveDown={onMoveDown}
       onMoveUp={onMoveUp}
+      onPreview={onPreview}
       onSave={onSave}
       pad={null}
       {...overrides}
     />,
   );
 
-  return { onDelete, onDirtyChange, onMoveDown, onMoveUp, onSave };
+  return { onDelete, onDirtyChange, onMoveDown, onMoveUp, onPreview, onSave };
 }
 
 describe("PadEditor", () => {
@@ -171,5 +174,21 @@ describe("PadEditor", () => {
 
     expect(screen.getByText("laugh.mp3")).toBeInTheDocument();
     expect(uploadTrigger).toHaveTextContent(/replace audio file/i);
+  });
+
+  it("previews the current edit draft with the effective volume", async () => {
+    const user = userEvent.setup();
+    const { onPreview } = renderPadEditor({
+      defaultPadVolume: 65,
+      mode: "edit",
+      pad: createPad({ volumeOverride: null }),
+    });
+
+    await user.click(screen.getByRole("button", { name: /preview/i }));
+
+    expect(onPreview).toHaveBeenCalledWith({
+      audioBlob: expect.any(Blob),
+      volume: 65,
+    });
   });
 });

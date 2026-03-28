@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -180,6 +180,19 @@ function createPad(overrides: Partial<SoundboardPad>): SoundboardPad {
     updatedAt: "2026-03-24T00:00:00.000Z",
     ...overrides,
   };
+}
+
+async function enterManagePads(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(
+    await screen.findByRole("button", { name: /manage pads/i }),
+  );
+}
+
+async function selectPadForManagement(
+  user: ReturnType<typeof userEvent.setup>,
+  name: string,
+) {
+  await user.click(await screen.findByRole("button", { name }));
 }
 
 afterEach(() => {
@@ -1619,7 +1632,7 @@ describe("SoundboardApp", () => {
     confirmSpy.mockRestore();
   });
 
-  it("prompts before discarding a dirty draft when switching into edit mode", async () => {
+  it("prompts before discarding a dirty draft when entering manage pads mode", async () => {
     const user = userEvent.setup();
     const boards: SoundboardBoard[] = [
       {
@@ -1657,7 +1670,7 @@ describe("SoundboardApp", () => {
       await screen.findByRole("textbox", { name: /^name$/i }),
       "Draft pad",
     );
-    await user.click(screen.getByRole("button", { name: /edit airhorn/i }));
+    await user.click(screen.getByRole("button", { name: /manage pads/i }));
 
     expect(confirmSpy).toHaveBeenCalledWith(
       "Discard unsaved changes?\nYour current pad edits will be lost.",
@@ -1670,7 +1683,8 @@ describe("SoundboardApp", () => {
     confirmSpy.mockRestore();
   });
 
-  it("opens pad editing on touch long press without triggering playback", async () => {
+  it("selects a pad in manage mode without triggering playback, then plays on the second click", async () => {
+    const user = userEvent.setup();
     const repository = createRepositoryFixture({
       boards: [
         {
@@ -1698,20 +1712,94 @@ describe("SoundboardApp", () => {
 
     render(<SoundboardApp repository={repository} player={player} />);
 
-    const padButton = await screen.findByRole("button", { name: /^airhorn$/i });
-
-    vi.useFakeTimers();
-    fireEvent.pointerDown(padButton, { pointerType: "touch" });
-    await act(async () => {
-      vi.advanceTimersByTime(450);
-    });
-    fireEvent.pointerUp(padButton, { pointerType: "touch" });
-    fireEvent.click(padButton);
+    await enterManagePads(user);
+    await selectPadForManagement(user, "Airhorn");
 
     expect(
       screen.getByRole("heading", { name: /edit sound pad/i }),
     ).toBeInTheDocument();
     expect(player.play).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /^airhorn$/i }));
+
+    expect(player.play).toHaveBeenCalledTimes(1);
+  });
+
+  it("previews the selected pad from the inspector in manage mode", async () => {
+    const user = userEvent.setup();
+    const repository = createRepositoryFixture({
+      boards: [
+        {
+          id: "board-1",
+          name: "Stream",
+          order: 1,
+          createdAt: "2026-03-24T00:00:00.000Z",
+          updatedAt: "2026-03-24T00:00:00.000Z",
+        },
+      ],
+      padsByBoardId: {
+        "board-1": [createPad({ id: "pad-1", boardId: "board-1", label: "Airhorn" })],
+      },
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await enterManagePads(user);
+    await selectPadForManagement(user, "Airhorn");
+    await user.click(screen.getByRole("button", { name: /preview/i }));
+
+    expect(player.play).toHaveBeenCalledTimes(1);
+    expect(player.play.mock.calls[0]?.[1]).toMatchObject({ volume: 100 });
+  });
+
+  it("returns to normal playback mode after leaving manage pads", async () => {
+    const user = userEvent.setup();
+    const repository = createRepositoryFixture({
+      boards: [
+        {
+          id: "board-1",
+          name: "Stream",
+          order: 1,
+          createdAt: "2026-03-24T00:00:00.000Z",
+          updatedAt: "2026-03-24T00:00:00.000Z",
+        },
+      ],
+      padsByBoardId: {
+        "board-1": [createPad({ id: "pad-1", boardId: "board-1", label: "Airhorn" })],
+      },
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    await enterManagePads(user);
+    await selectPadForManagement(user, "Airhorn");
+    await user.click(screen.getByRole("button", { name: /done/i }));
+    await user.click(screen.getByRole("button", { name: /^airhorn$/i }));
+
+    expect(player.play).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("heading", { name: /add sound pad/i }),
+    ).toBeInTheDocument();
   });
 
   it("prompts before discarding a dirty draft when switching boards", async () => {
@@ -1852,7 +1940,8 @@ describe("SoundboardApp", () => {
 
     render(<SoundboardApp repository={repository} player={player} />);
 
-    await user.click(await screen.findByRole("button", { name: /edit airhorn/i }));
+    await enterManagePads(user);
+    await selectPadForManagement(user, "Airhorn");
     await user.clear(screen.getByRole("textbox", { name: /^name$/i }));
     await user.type(screen.getByRole("textbox", { name: /^name$/i }), "Crowd");
     await user.click(screen.getByRole("button", { name: /save pad/i }));
@@ -1890,7 +1979,8 @@ describe("SoundboardApp", () => {
 
     render(<SoundboardApp repository={repository} player={player} />);
 
-    await user.click(await screen.findByRole("button", { name: /edit airhorn/i }));
+    await enterManagePads(user);
+    await selectPadForManagement(user, "Airhorn");
     await user.click(screen.getByRole("button", { name: /delete pad/i }));
 
     await waitFor(() => {
@@ -1932,7 +2022,8 @@ describe("SoundboardApp", () => {
 
     render(<SoundboardApp repository={repository} player={player} />);
 
-    await user.click(await screen.findByRole("button", { name: /edit clap/i }));
+    await enterManagePads(user);
+    await selectPadForManagement(user, "Clap");
     await user.click(screen.getByRole("button", { name: /move up/i }));
 
     await waitFor(() => {
@@ -1978,7 +2069,8 @@ describe("SoundboardApp", () => {
 
     render(<SoundboardApp repository={repository} player={player} />);
 
-    await user.click(await screen.findByRole("button", { name: /edit airhorn/i }));
+    await enterManagePads(user);
+    await selectPadForManagement(user, "Airhorn");
     await user.click(screen.getByRole("button", { name: /move down/i }));
 
     await waitFor(() => {

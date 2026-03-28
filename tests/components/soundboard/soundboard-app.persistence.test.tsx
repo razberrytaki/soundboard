@@ -45,11 +45,25 @@ async function createPad(
   await user.click(screen.getByRole("button", { name: /save pad/i }));
 }
 
+async function enterManagePads(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(
+    await screen.findByRole("button", { name: /manage pads/i }),
+  );
+}
+
+async function selectPadForManagement(
+  user: ReturnType<typeof userEvent.setup>,
+  name: string,
+) {
+  await user.click(await screen.findByRole("button", { name }));
+}
+
 async function setPadVolume(
   user: ReturnType<typeof userEvent.setup>,
   volume: string,
 ) {
-  await user.click(await screen.findByRole("button", { name: /edit airhorn/i }));
+  await enterManagePads(user);
+  await selectPadForManagement(user, "Airhorn");
   await user.click(screen.getByRole("checkbox", { name: /use default volume/i }));
   fireEvent.change(screen.getByRole("slider", { name: /pad volume/i }), {
     target: { value: volume },
@@ -77,7 +91,8 @@ describe("SoundboardApp persistence regressions", () => {
       <SoundboardApp player={player} repository={createSoundboardDb(dbName)} />,
     );
 
-    await user.click(await screen.findByRole("button", { name: /edit airhorn/i }));
+    await enterManagePads(user);
+    await selectPadForManagement(user, "Airhorn");
     expect(screen.getByRole("checkbox", { name: /use default volume/i })).not.toBeChecked();
     expect(screen.getByRole("slider", { name: /pad volume/i })).toHaveValue("35");
 
@@ -177,7 +192,8 @@ describe("SoundboardApp persistence regressions", () => {
     await saveCurrentBoardName(user);
     await createPad(user, "Airhorn", "airhorn.mp3");
     await createPad(user, "Clap", "clap.mp3");
-    await user.click(screen.getByRole("button", { name: /edit airhorn/i }));
+    await enterManagePads(user);
+    await selectPadForManagement(user, "Airhorn");
     expect(
       await screen.findByRole("heading", { name: /edit sound pad/i }),
     ).toBeInTheDocument();

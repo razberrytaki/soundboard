@@ -26,10 +26,15 @@ type PadEditorProps = {
   pad: SoundboardPad | null;
   canMoveUp: boolean;
   canMoveDown: boolean;
+  defaultPadVolume: number;
   onDirtyChange(value: boolean): void;
   onDelete(): void;
   onMoveDown(): void;
   onMoveUp(): void;
+  onPreview(value: {
+    audioBlob: Blob;
+    volume: number;
+  }): void;
   onSave(value: PadEditorSubmitValue): Promise<void>;
 };
 
@@ -41,10 +46,12 @@ export function PadEditor({
   pad,
   canMoveUp,
   canMoveDown,
+  defaultPadVolume,
   onDirtyChange,
   onDelete,
   onMoveDown,
   onMoveUp,
+  onPreview,
   onSave,
 }: PadEditorProps) {
   const nameErrorId = useId();
@@ -88,6 +95,7 @@ export function PadEditor({
   const nameError = nameTouched ? validatePadName(label) : null;
   const normalizedLabel = normalizePadName(label);
   const canSave = !validatePadName(label) && !audioError && Boolean(audioBlob);
+  const previewVolume = effectiveVolumeOverride ?? defaultPadVolume;
 
   useEffect(() => {
     const isDirty =
@@ -138,6 +146,17 @@ export function PadEditor({
       audioName,
       mimeType,
       volumeOverride: effectiveVolumeOverride,
+    });
+  };
+
+  const handlePreview = () => {
+    if (!audioBlob || audioError) {
+      return;
+    }
+
+    onPreview({
+      audioBlob,
+      volume: previewVolume,
     });
   };
 
@@ -303,7 +322,15 @@ export function PadEditor({
         </div>
 
         {mode === "edit" ? (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              className="rounded-full border border-[var(--color-line)] px-3 py-2 text-sm text-[var(--color-ink)] transition-colors hover:bg-white/70 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!audioBlob || Boolean(audioError)}
+              onClick={handlePreview}
+              type="button"
+            >
+              Preview
+            </button>
             <button
               className="rounded-full border border-[var(--color-line)] px-3 py-2 text-sm text-[var(--color-ink)] transition-colors hover:bg-white/70 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={!canMoveUp}
