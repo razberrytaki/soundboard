@@ -178,6 +178,9 @@ describe("SoundboardApp persistence regressions", () => {
     await createPad(user, "Airhorn", "airhorn.mp3");
     await createPad(user, "Clap", "clap.mp3");
     await user.click(screen.getByRole("button", { name: /edit airhorn/i }));
+    expect(
+      await screen.findByRole("heading", { name: /edit sound pad/i }),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /move down/i }));
 
     await waitFor(() => {

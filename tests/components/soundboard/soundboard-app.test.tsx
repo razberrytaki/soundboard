@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -183,6 +183,7 @@ function createPad(overrides: Partial<SoundboardPad>): SoundboardPad {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   audioOutputSupport.capabilities = {
     secureContext: true,
     canRouteOutput: true,
@@ -1667,6 +1668,50 @@ describe("SoundboardApp", () => {
     );
 
     confirmSpy.mockRestore();
+  });
+
+  it("opens pad editing on touch long press without triggering playback", async () => {
+    const repository = createRepositoryFixture({
+      boards: [
+        {
+          id: "board-1",
+          name: "Stream",
+          order: 1,
+          createdAt: "2026-03-24T00:00:00.000Z",
+          updatedAt: "2026-03-24T00:00:00.000Z",
+        },
+      ],
+      padsByBoardId: {
+        "board-1": [createPad({ id: "pad-1", boardId: "board-1", label: "Airhorn" })],
+      },
+      settings: {
+        activeBoardId: "board-1",
+        allowConcurrentPlayback: true,
+      },
+    });
+    const player = {
+      play: vi.fn(async () => undefined),
+      setAllowConcurrentPlayback: vi.fn(),
+      getActiveCount: vi.fn(() => 0),
+      stopAll: vi.fn(),
+    };
+
+    render(<SoundboardApp repository={repository} player={player} />);
+
+    const padButton = await screen.findByRole("button", { name: /^airhorn$/i });
+
+    vi.useFakeTimers();
+    fireEvent.pointerDown(padButton, { pointerType: "touch" });
+    await act(async () => {
+      vi.advanceTimersByTime(450);
+    });
+    fireEvent.pointerUp(padButton, { pointerType: "touch" });
+    fireEvent.click(padButton);
+
+    expect(
+      screen.getByRole("heading", { name: /edit sound pad/i }),
+    ).toBeInTheDocument();
+    expect(player.play).not.toHaveBeenCalled();
   });
 
   it("prompts before discarding a dirty draft when switching boards", async () => {
