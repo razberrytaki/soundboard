@@ -50,17 +50,18 @@ describe("PadCard", () => {
     );
 
     expect(screen.queryByText("Play")).not.toBeInTheDocument();
-    expect(screen.getByText("Edit")).toHaveClass("pointer-events-none");
-    expect(screen.getByText("Edit")).toHaveClass("font-[family-name:var(--font-mono)]");
+    const editLabel = screen.getByText("Edit");
+    expect(editLabel.parentElement).toHaveClass("pointer-events-none");
+    expect(editLabel).toHaveClass("font-[family-name:var(--font-mono)]");
 
     const editAction = screen.getByRole("button", {
       name: /edit very long pad name/i,
     });
     expect(editAction).toHaveClass("absolute");
-    expect(editAction).toHaveClass("right-2");
+    expect(editAction).toHaveClass("right-3");
     expect(editAction).toHaveClass("top-2");
     expect(editAction).toHaveClass("h-8");
-    expect(editAction).toHaveClass("w-12");
+    expect(editAction).toHaveClass("w-20");
   });
 
   it("clicking the edit hit area edits without playing", async () => {

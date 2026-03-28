@@ -24,10 +24,10 @@ export function PadCard({ pad, onEdit, onPlay }: PadCardProps) {
   useEffect(() => clearLongPress, []);
 
   return (
-    <div className="relative">
+    <div className="group relative transition-transform duration-200 hover:-translate-y-1 focus-within:-translate-y-1">
       <button
         aria-label={pad.label}
-        className="peer group/pad aspect-square w-full rounded-[26px] border border-[rgba(23,20,18,0.08)] bg-[rgba(255,255,255,0.68)] p-4 text-left shadow-[0_16px_36px_rgba(34,24,16,0.08)] transition-transform duration-200 hover:-translate-y-1"
+        className="aspect-square w-full rounded-[26px] border border-[rgba(23,20,18,0.08)] bg-[rgba(255,255,255,0.68)] p-4 text-left shadow-[0_16px_36px_rgba(34,24,16,0.08)]"
         onClick={() => {
           if (longPressTriggeredRef.current) {
             longPressTriggeredRef.current = false;
@@ -61,15 +61,17 @@ export function PadCard({ pad, onEdit, onPlay }: PadCardProps) {
           </span>
         </div>
       </button>
-      <span
+      <div
         aria-hidden="true"
-        className="pointer-events-none absolute right-3 top-3 font-[family-name:var(--font-mono)] text-[0.65rem] uppercase tracking-[0.18em] text-white/72 opacity-0 transition-opacity duration-200 peer-hover:opacity-100 peer-focus-visible:opacity-100"
+        className="pointer-events-none absolute inset-x-4 top-3 flex items-center justify-end opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
       >
-        Edit
-      </span>
+        <span className="font-[family-name:var(--font-mono)] text-[0.65rem] uppercase tracking-[0.18em] text-white/72">
+          Edit
+        </span>
+      </div>
       <button
         aria-label={`Edit ${pad.label}`}
-        className="absolute right-2 top-2 h-8 w-12 rounded-md bg-transparent opacity-0 outline-none transition-opacity duration-200 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-white/80 peer-hover:opacity-100"
+        className="absolute right-3 top-2 h-8 w-20 rounded-md bg-transparent opacity-0 outline-none transition-opacity duration-150 pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 focus-visible:ring-2 focus-visible:ring-white/80"
         onClick={(event) => {
           event.stopPropagation();
           onEdit(pad);
