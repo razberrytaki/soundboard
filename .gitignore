@@ -9,5 +9,6 @@ node_modules/
 dist/
 out/
 coverage/
+docs/plans/
 skills-lock.json
 tsconfig.tsbuildinfo

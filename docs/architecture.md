@@ -13,6 +13,7 @@ The current application supports:
 - Multiple sound boards
 - Board creation, renaming, and deletion
 - Pad creation, editing, deletion, and manual reordering
+- Desktop corner-label editing affordance plus touch long-press editing
 - Dedicated settings dialog for playback controls
 - Local audio file uploads stored in-browser
 - Optional concurrent playback
@@ -119,6 +120,7 @@ The current UI is organized into three main areas:
   - active board header
   - board rename and delete actions
   - sound pad grid
+  - desktop hover edit affordance in the pad corner
 - Settings dialog
   - default pad volume
   - concurrent playback
@@ -131,6 +133,12 @@ The current UI is organized into three main areas:
   - reorder and delete controls for existing pads
 
 The inspector is always present. Unsaved pad edits are guarded before switching to another editing target.
+
+Pad interaction rules are intentionally split by intent:
+
+- click or short tap plays the pad
+- desktop editing is exposed through a small top-right edit affordance
+- touch editing uses long press so playback remains the default short tap action
 
 ## Playback Model
 

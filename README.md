@@ -10,6 +10,7 @@ The project is currently built with Next.js and deployed to Cloudflare Workers t
 - Board creation, inline renaming, and deletion
 - Confirmation before deleting boards that still contain pads
 - Pad creation, editing, deletion, and manual reordering
+- Desktop corner-label editing affordance plus touch long-press editing
 - Dedicated settings dialog for playback behavior and browser output state
 - Default pad volume plus per-pad volume overrides
 - Local audio file upload with browser-side validation
@@ -186,6 +187,12 @@ Persisted settings currently include:
 - preferred audio output device metadata when supported
 
 Pads may also store a pad-specific `volumeOverride` value. When it is `null`, the pad falls back to the global default volume.
+
+Pad interaction currently follows this model:
+
+- clicking or tapping a pad plays it
+- on desktop, editing is exposed through a small top-right `Edit` affordance
+- on touch devices, a long press opens pad editing without playing the sound
 
 Browser storage limits still apply. Large or numerous audio files may eventually hit quota limits depending on the browser.
 
