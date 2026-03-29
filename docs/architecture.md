@@ -13,12 +13,13 @@ The current application supports:
 - Multiple sound boards
 - Board creation, renaming, and deletion
 - Pad creation, editing, deletion, and manual reordering
-- Desktop corner-label editing affordance plus touch long-press editing
-- Dedicated settings dialog for playback controls
+- Dedicated `Manage Pads` mode for explicit pad selection, editing, and preview
+- Dedicated settings dialog for playback and audio output controls
 - Local audio file uploads stored in-browser
 - Optional concurrent playback
 - Default pad volume plus per-pad volume overrides
 - Optional `Stop All` control for active playback
+- Progressive-enhancement audio output routing and saved preferred device metadata
 - Restoration of the last active board and saved pads on reload
 
 The current scope intentionally excludes:
@@ -110,7 +111,7 @@ Current pad rules:
 
 ## UI Structure
 
-The current UI is organized into three main areas:
+The current UI is organized around four primary surfaces:
 
 - Left sidebar
   - board list
@@ -119,26 +120,33 @@ The current UI is organized into three main areas:
 - Main content area
   - active board header
   - board rename and delete actions
+  - `Stop All`, `Settings`, `Manage Pads`, and `New Pad` actions
   - sound pad grid
-  - desktop hover edit affordance in the pad corner
+  - playback-first pad presentation with selected-pad emphasis during management
 - Settings dialog
   - default pad volume
   - concurrent playback
   - `Stop All` visibility
   - audio output support state
+  - preferred output device selection and reset
 - Inspector panel
-  - pad creation and editing
+  - default create-pad workflow in normal play mode
+  - selection prompt when `Manage Pads` is active without a selected pad
+  - pad editing for the selected pad in `Manage Pads` mode
   - color and audio selection
   - pad-level volume override
-  - reorder and delete controls for existing pads
+  - preview, reorder, and delete controls for existing pads
 
-The inspector is always present. Unsaved pad edits are guarded before switching to another editing target.
+The main workspace keeps the inspector visible beside the grid. Unsaved pad edits are guarded before switching boards, changing modes, or targeting another pad.
 
 Pad interaction rules are intentionally split by intent:
 
-- click or short tap plays the pad
-- desktop editing is exposed through a small top-right edit affordance
-- touch editing uses long press so playback remains the default short tap action
+- in normal play mode, clicking or tapping a pad plays it immediately
+- editing is entered from the header-level `Manage Pads` action rather than from a pad-local affordance
+- in `Manage Pads` mode, the first click selects a pad for editing
+- clicking the selected pad again previews/plays it
+- the inspector also exposes a dedicated `Preview` action while editing an existing pad
+- leaving `Manage Pads` returns the grid to normal playback behavior
 
 ## Playback Model
 
