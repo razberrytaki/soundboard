@@ -337,12 +337,48 @@ describe("createAudioPlayer", () => {
     expect(player.getActiveCount()).toBe(1);
   });
 
-  it("cleans up completed audio instances and revokes their object URLs", async () => {
+  it("reuses a completed audio instance and object URL for the same blob", async () => {
     const createdAudio: FakeAudio[] = [];
+    const createObjectUrl = vi
+      .fn<(blob: Blob) => string>()
+      .mockReturnValueOnce("blob:done-1")
+      .mockReturnValueOnce("blob:done-2");
+    const revokedUrls: string[] = [];
+    const blob = new Blob(["a"], { type: "audio/mpeg" });
+    const player = createAudioPlayer({
+      allowConcurrentPlayback: true,
+      createObjectUrl,
+      revokeObjectUrl: (url) => revokedUrls.push(url),
+      createAudio: (src) => {
+        const audio = new FakeAudio(src);
+
+        createdAudio.push(audio);
+        return audio;
+      },
+    });
+
+    await player.play(blob);
+    createdAudio[0]?.finish();
+    await player.play(blob);
+
+    expect(player.getActiveCount()).toBe(1);
+    expect(createdAudio).toHaveLength(1);
+    expect(createObjectUrl).toHaveBeenCalledTimes(1);
+    expect(createdAudio[0]?.src).toBe("blob:done-1");
+    expect(revokedUrls).toEqual([]);
+  });
+
+  it("evicts the least recently used completed audio cache entry", async () => {
+    const createdAudio: FakeAudio[] = [];
+    const createObjectUrl = vi
+      .fn<(blob: Blob) => string>()
+      .mockReturnValueOnce("blob:one")
+      .mockReturnValueOnce("blob:two");
     const revokedUrls: string[] = [];
     const player = createAudioPlayer({
       allowConcurrentPlayback: true,
-      createObjectUrl: () => "blob:done",
+      maxCachedEntries: 1,
+      createObjectUrl,
       revokeObjectUrl: (url) => revokedUrls.push(url),
       createAudio: (src) => {
         const audio = new FakeAudio(src);
@@ -354,9 +390,11 @@ describe("createAudioPlayer", () => {
 
     await player.play(new Blob(["a"], { type: "audio/mpeg" }));
     createdAudio[0]?.finish();
+    await player.play(new Blob(["b"], { type: "audio/mpeg" }));
+    createdAudio[1]?.finish();
 
-    expect(player.getActiveCount()).toBe(0);
-    expect(revokedUrls).toEqual(["blob:done"]);
+    expect(createObjectUrl).toHaveBeenCalledTimes(2);
+    expect(revokedUrls).toEqual(["blob:one"]);
   });
 
   it("rethrows play failures after cleaning up the active entry", async () => {
