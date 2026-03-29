@@ -151,6 +151,44 @@ describe("createSoundboardDb", () => {
     expect(pads[0]?.audioBlob.size).toBe(1);
   });
 
+  it("returns lightweight pad summaries and can read a full pad by id", async () => {
+    const db = createSoundboardDb(makeDbName());
+    const board = await db.createBoard({ name: "Memes" });
+
+    const savedPad = await db.savePad({
+      boardId: board.id,
+      label: "Airhorn",
+      color: "#d95b43",
+      order: 1,
+      audioBlob: new Blob(["a"], { type: "audio/mpeg" }),
+      audioName: "airhorn.mp3",
+      mimeType: "audio/mpeg",
+    });
+
+    const repository = db as typeof db & {
+      getPad(padId: string): Promise<Record<string, unknown> | null>;
+      listPadSummaries(boardId: string): Promise<Record<string, unknown>[]>;
+    };
+    const summaries = await repository.listPadSummaries(board.id);
+    const fullPad = await repository.getPad(savedPad.id);
+
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0]).toMatchObject({
+      id: savedPad.id,
+      label: "Airhorn",
+      audioName: "airhorn.mp3",
+      mimeType: "audio/mpeg",
+    });
+    expect(summaries[0]).not.toHaveProperty("audioBlob");
+    expect(fullPad).toMatchObject({
+      id: savedPad.id,
+      label: "Airhorn",
+      audioName: "airhorn.mp3",
+      mimeType: "audio/mpeg",
+    });
+    expect(fullPad?.audioBlob).toBeInstanceOf(Blob);
+  });
+
   it("breaks pad order ties by created timestamp", async () => {
     const db = createSoundboardDb(makeDbName());
     const board = await db.createBoard({ name: "Memes" });
@@ -269,13 +307,16 @@ describe("createSoundboardDb", () => {
       label: string;
       color: string;
       order: number;
-      audioBlob: Blob;
       audioName: string;
       mimeType: string;
       volumeOverride: number | null;
       createdAt: string;
       updatedAt: string;
     }>(upgradedDatabase, "pads", padId);
+    const migratedPadAudio = await readRecord<{
+      id: string;
+      audioBlob: Blob;
+    }>(upgradedDatabase, "pad-audio", padId);
     upgradedDatabase.close();
 
     expect(migratedSettings).toEqual({
@@ -291,8 +332,15 @@ describe("createSoundboardDb", () => {
       id: padId,
       boardId,
       label: "Clap",
+      audioName: "clap.mp3",
+      mimeType: "audio/mpeg",
       volumeOverride: null,
     });
+    expect(migratedPad).not.toHaveProperty("audioBlob");
+    expect(migratedPadAudio).toMatchObject({
+      id: padId,
+    });
+    expect(migratedPadAudio?.audioBlob).toBeInstanceOf(Blob);
   });
 
   it("returns default settings before any records exist", async () => {
@@ -364,6 +412,48 @@ describe("createSoundboardDb", () => {
 
     const updatedPads = await db.listPads(board.id);
     expect(updatedPads[0]?.volumeOverride).toBe(35);
+  });
+
+  it("preserves stored audio when updating pad metadata without resupplying the blob", async () => {
+    const db = createSoundboardDb(makeDbName());
+    const board = await db.createBoard({ name: "Memes" });
+
+    const created = await db.savePad({
+      boardId: board.id,
+      label: "Airhorn",
+      color: "#d95b43",
+      order: 1,
+      audioBlob: new Blob(["a"], { type: "audio/mpeg" }),
+      audioName: "airhorn.mp3",
+      mimeType: "audio/mpeg",
+    });
+
+    const repository = db as typeof db & {
+      getPad(padId: string): Promise<{
+        label: string;
+        audioBlob: Blob;
+        audioName: string;
+        mimeType: string;
+      } | null>;
+      savePad(input: Record<string, unknown>): Promise<unknown>;
+    };
+
+    await repository.savePad({
+      id: created.id,
+      boardId: board.id,
+      label: "Crowd",
+      color: "#4a507a",
+      order: 1,
+    });
+
+    const updated = await repository.getPad(created.id);
+
+    expect(updated).toMatchObject({
+      label: "Crowd",
+      audioName: "airhorn.mp3",
+      mimeType: "audio/mpeg",
+    });
+    expect(updated?.audioBlob.size).toBe(1);
   });
 
   it("renames a board and refreshes its updated timestamp", async () => {

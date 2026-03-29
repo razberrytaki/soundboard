@@ -4,20 +4,35 @@ import type {
   SavePadInput,
   SoundboardBoard,
   SoundboardPad,
+  SoundboardPadSummary,
   SoundboardRepository,
   SoundboardSettings,
   UpdateBoardInput,
   UpdateSettingsInput,
 } from "@/lib/soundboard/types";
 
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 const BOARDS_STORE = "boards";
 const PADS_STORE = "pads";
+const PAD_AUDIO_STORE = "pad-audio";
 const SETTINGS_STORE = "settings";
 const SETTINGS_KEY = "app";
 
 type SettingsRecord = SoundboardSettings & {
   key: typeof SETTINGS_KEY;
+};
+
+type PadRecord = SoundboardPadSummary;
+
+type PadAudioRecord = {
+  id: string;
+  audioBlob: Blob;
+};
+
+type SavePadInputWithAudio = SavePadInput & {
+  audioBlob: Blob;
+  audioName: string;
+  mimeType: string;
 };
 
 function normalizeSettingsRecord(
@@ -30,10 +45,18 @@ function normalizeSettingsRecord(
   };
 }
 
-function normalizePadRecord(record: SoundboardPad): SoundboardPad {
+function normalizePadRecord(record: PadRecord | SoundboardPad): PadRecord {
   return {
-    ...record,
+    id: record.id,
+    boardId: record.boardId,
+    label: record.label,
+    color: record.color,
+    order: record.order,
+    audioName: record.audioName,
+    mimeType: record.mimeType,
     volumeOverride: record.volumeOverride ?? null,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
   };
 }
 
@@ -43,6 +66,28 @@ function toPublicSettings(record: SettingsRecord): SoundboardSettings {
   void key;
 
   return settings;
+}
+
+function toPublicPad(
+  record: PadRecord | undefined,
+  audioRecord: PadAudioRecord | undefined,
+): SoundboardPad | null {
+  if (!record || !audioRecord) {
+    return null;
+  }
+
+  return {
+    ...record,
+    audioBlob: audioRecord.audioBlob,
+  };
+}
+
+function hasAudioFields(input: SavePadInput): input is SavePadInputWithAudio {
+  return (
+    input.audioBlob instanceof Blob &&
+    typeof input.audioName === "string" &&
+    typeof input.mimeType === "string"
+  );
 }
 
 function openDatabase(name: string) {
@@ -66,23 +111,37 @@ function openDatabase(name: string) {
         padsStore.createIndex("boardId", "boardId", { unique: false });
       }
 
+      if (!database.objectStoreNames.contains(PAD_AUDIO_STORE)) {
+        database.createObjectStore(PAD_AUDIO_STORE, { keyPath: "id" });
+      }
+
       if (!database.objectStoreNames.contains(SETTINGS_STORE)) {
         database.createObjectStore(SETTINGS_STORE, { keyPath: "key" });
       }
 
-      if (transaction && oldVersion < 2) {
+      if (!transaction) {
+        return;
+      }
+
+      if (oldVersion < 2) {
         const settingsStore = transaction.objectStore(SETTINGS_STORE);
-        const padsStore = transaction.objectStore(PADS_STORE);
         const settingsRequest = settingsStore.get(SETTINGS_KEY) as IDBRequest<
           SettingsRecord | undefined
         >;
-        const padsRequest = padsStore.openCursor() as IDBRequest<IDBCursorWithValue | null>;
 
         settingsRequest.onsuccess = () => {
           settingsStore.put(
             normalizeSettingsRecord(settingsRequest.result ?? undefined),
           );
         };
+      }
+
+      if (oldVersion < 3) {
+        const padsStore = transaction.objectStore(PADS_STORE);
+        const padAudioStore = transaction.objectStore(PAD_AUDIO_STORE);
+        const padsRequest = padsStore.openCursor() as IDBRequest<
+          IDBCursorWithValue | null
+        >;
 
         padsRequest.onsuccess = () => {
           const cursor = padsRequest.result;
@@ -91,7 +150,17 @@ function openDatabase(name: string) {
             return;
           }
 
-          cursor.update(normalizePadRecord(cursor.value as SoundboardPad));
+          const record = cursor.value as SoundboardPad | PadRecord;
+
+          cursor.update(normalizePadRecord(record));
+
+          if ("audioBlob" in record && record.audioBlob instanceof Blob) {
+            padAudioStore.put({
+              id: record.id,
+              audioBlob: record.audioBlob,
+            } satisfies PadAudioRecord);
+          }
+
           cursor.continue();
         };
       }
@@ -153,6 +222,16 @@ async function readSettings(
 }
 
 function sortBoards(records: SoundboardBoard[]) {
+  return [...records].sort((left, right) => {
+    if (left.order === right.order) {
+      return left.createdAt.localeCompare(right.createdAt);
+    }
+
+    return left.order - right.order;
+  });
+}
+
+function sortPadRecords(records: PadRecord[]) {
   return [...records].sort((left, right) => {
     if (left.order === right.order) {
       return left.createdAt.localeCompare(right.createdAt);
@@ -274,11 +353,12 @@ export function createSoundboardDb(name = "soundboard"): SoundboardRepository {
     async deleteBoard(boardId: string) {
       const database = await getDatabase();
       const transaction = database.transaction(
-        [BOARDS_STORE, PADS_STORE, SETTINGS_STORE],
+        [BOARDS_STORE, PADS_STORE, PAD_AUDIO_STORE, SETTINGS_STORE],
         "readwrite",
       );
       const boardStore = transaction.objectStore(BOARDS_STORE);
       const padStore = transaction.objectStore(PADS_STORE);
+      const padAudioStore = transaction.objectStore(PAD_AUDIO_STORE);
       const settingsStore = transaction.objectStore(SETTINGS_STORE);
       const padIndex = padStore.index("boardId");
       const [boards, existingSettings, padKeys] = await Promise.all([
@@ -299,6 +379,7 @@ export function createSoundboardDb(name = "soundboard"): SoundboardRepository {
 
       for (const key of padKeys) {
         padStore.delete(key);
+        padAudioStore.delete(key);
       }
 
       const currentSettings = normalizeSettingsRecord(existingSettings);
@@ -349,26 +430,70 @@ export function createSoundboardDb(name = "soundboard"): SoundboardRepository {
       return toPublicSettings(normalizeSettingsRecord(nextSettings));
     },
 
+    async getPad(padId: string) {
+      const database = await getDatabase();
+      const transaction = database.transaction(
+        [PADS_STORE, PAD_AUDIO_STORE],
+        "readonly",
+      );
+      const padStore = transaction.objectStore(PADS_STORE);
+      const padAudioStore = transaction.objectStore(PAD_AUDIO_STORE);
+      const [record, audioRecord] = await Promise.all([
+        requestToPromise(
+          padStore.get(padId) as IDBRequest<PadRecord | undefined>,
+        ),
+        requestToPromise(
+          padAudioStore.get(padId) as IDBRequest<PadAudioRecord | undefined>,
+        ),
+      ]);
+
+      await transactionDone(transaction);
+
+      return toPublicPad(record ? normalizePadRecord(record) : undefined, audioRecord);
+    },
+
     async savePad(input: SavePadInput) {
       const database = await getDatabase();
-      const transaction = database.transaction(PADS_STORE, "readwrite");
-      const store = transaction.objectStore(PADS_STORE);
+      const transaction = database.transaction(
+        [PADS_STORE, PAD_AUDIO_STORE],
+        "readwrite",
+      );
+      const padStore = transaction.objectStore(PADS_STORE);
+      const padAudioStore = transaction.objectStore(PAD_AUDIO_STORE);
       const existing =
-        input.id === undefined
-          ? undefined
-          : await requestToPromise(
-              store.get(input.id) as IDBRequest<SoundboardPad | undefined>,
-            );
+        "id" in input
+          ? await requestToPromise(
+              padStore.get(input.id) as IDBRequest<PadRecord | undefined>,
+            )
+          : undefined;
+      const existingAudio =
+        "id" in input
+          ? await requestToPromise(
+              padAudioStore.get(input.id) as IDBRequest<PadAudioRecord | undefined>,
+            )
+          : undefined;
+
+      if (!hasAudioFields(input) && !existingAudio) {
+        transaction.abort();
+        throw new Error("Audio file is required when creating a pad.");
+      }
+
       const now = nextTimestamp(existing?.updatedAt);
-      const pad: SoundboardPad = {
-        id: input.id ?? crypto.randomUUID(),
+      const nextPadId = "id" in input ? input.id : crypto.randomUUID();
+      const nextAudioName = hasAudioFields(input)
+        ? input.audioName
+        : existing?.audioName ?? "";
+      const nextMimeType = hasAudioFields(input)
+        ? input.mimeType
+        : existing?.mimeType ?? "";
+      const nextRecord: PadRecord = {
+        id: nextPadId,
         boardId: input.boardId,
         label: input.label,
         color: input.color,
         order: input.order,
-        audioBlob: input.audioBlob,
-        audioName: input.audioName,
-        mimeType: input.mimeType,
+        audioName: nextAudioName,
+        mimeType: nextMimeType,
         volumeOverride:
           input.volumeOverride === undefined
             ? existing?.volumeOverride ?? null
@@ -377,37 +502,82 @@ export function createSoundboardDb(name = "soundboard"): SoundboardRepository {
         updatedAt: now,
       };
 
-      store.put(pad);
+      padStore.put(nextRecord);
+
+      if (hasAudioFields(input)) {
+        padAudioStore.put({
+          id: nextPadId,
+          audioBlob: input.audioBlob,
+        } satisfies PadAudioRecord);
+      }
+
       await transactionDone(transaction);
 
-      return pad;
+      return {
+        ...nextRecord,
+        audioBlob: hasAudioFields(input)
+          ? input.audioBlob
+          : existingAudio!.audioBlob,
+      };
     },
 
     async listPads(boardId: string) {
+      const database = await getDatabase();
+      const transaction = database.transaction(
+        [PADS_STORE, PAD_AUDIO_STORE],
+        "readonly",
+      );
+      const padStore = transaction.objectStore(PADS_STORE);
+      const padAudioStore = transaction.objectStore(PAD_AUDIO_STORE);
+      const padIndex = padStore.index("boardId");
+      const padRecords = await requestToPromise(
+        padIndex.getAll(IDBKeyRange.only(boardId)) as IDBRequest<PadRecord[]>,
+      );
+      const sortedRecords = sortPadRecords(
+        padRecords.map((record) => normalizePadRecord(record)),
+      );
+      const audioRecords = await Promise.all(
+        sortedRecords.map((record) =>
+          requestToPromise(
+            padAudioStore.get(record.id) as IDBRequest<PadAudioRecord | undefined>,
+          ),
+        ),
+      );
+
+      await transactionDone(transaction);
+
+      return sortedRecords.reduce<SoundboardPad[]>((pads, record, index) => {
+        const pad = toPublicPad(record, audioRecords[index]);
+
+        if (pad) {
+          pads.push(pad);
+        }
+
+        return pads;
+      }, []);
+    },
+
+    async listPadSummaries(boardId: string) {
       const database = await getDatabase();
       const transaction = database.transaction(PADS_STORE, "readonly");
       const store = transaction.objectStore(PADS_STORE);
       const index = store.index("boardId");
       const pads = await requestToPromise(
-        index.getAll(IDBKeyRange.only(boardId)) as IDBRequest<SoundboardPad[]>,
+        index.getAll(IDBKeyRange.only(boardId)) as IDBRequest<PadRecord[]>,
       );
 
-      return [...pads]
-        .map((pad) => normalizePadRecord(pad))
-        .sort((left, right) => {
-          if (left.order === right.order) {
-            return left.createdAt.localeCompare(right.createdAt);
-          }
-
-          return left.order - right.order;
-        });
+      return sortPadRecords(pads.map((record) => normalizePadRecord(record)));
     },
 
     async deletePad(padId: string) {
       const database = await getDatabase();
-      const transaction = database.transaction(PADS_STORE, "readwrite");
+      const transaction = database.transaction(
+        [PADS_STORE, PAD_AUDIO_STORE],
+        "readwrite",
+      );
 
       transaction.objectStore(PADS_STORE).delete(padId);
+      transaction.objectStore(PAD_AUDIO_STORE).delete(padId);
       await transactionDone(transaction);
     },
   };
