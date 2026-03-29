@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { BoardSidebar } from "@/components/soundboard/board-sidebar";
 import { PadEditor } from "@/components/soundboard/pad-editor";
@@ -18,6 +18,7 @@ import { createSoundboardDb } from "@/lib/soundboard/db";
 import type {
   SoundboardBoard,
   SoundboardPad,
+  SoundboardPadSummary,
   SoundboardRepository,
   SoundboardSettings,
 } from "@/lib/soundboard/types";
@@ -32,6 +33,7 @@ const DISCARD_CHANGES_MESSAGE =
   "Discard unsaved changes?\nYour current pad edits will be lost.";
 const DELETE_BOARD_MESSAGE =
   "Delete this board?\nThis board contains saved sound pads. Deleting it will remove them from this browser.";
+const DEFAULT_PAD_VOLUME_SAVE_DELAY_MS = 250;
 
 type SoundboardPlayer = {
   play(blob: Blob, options?: { volume: number; outputDeviceId?: string | null }): Promise<void>;
@@ -49,6 +51,14 @@ function getNextBoardName(records: SoundboardBoard[]) {
   return `Board ${records.length + 1}`;
 }
 
+function toPadSummary(pad: SoundboardPad): SoundboardPadSummary {
+  const { audioBlob, ...summary } = pad;
+
+  void audioBlob;
+
+  return summary;
+}
+
 export function SoundboardApp({ repository, player }: SoundboardAppProps) {
   const [repositoryInstance] = useState<SoundboardRepository>(
     () => repository ?? createSoundboardDb(),
@@ -57,7 +67,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     () => player ?? createAudioPlayer(),
   );
   const [boards, setBoards] = useState<SoundboardBoard[]>([]);
-  const [pads, setPads] = useState<SoundboardPad[]>([]);
+  const [pads, setPads] = useState<SoundboardPadSummary[]>([]);
   const [settings, setSettings] = useState<SoundboardSettings | null>(null);
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
   const [boardEditorState, setBoardEditorState] = useState<{
@@ -70,6 +80,11 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     { mode: "create" } | { mode: "edit"; padId: string } | null
   >(null);
   const [createEditorVersion, setCreateEditorVersion] = useState(0);
+  const [editedPad, setEditedPad] = useState<SoundboardPad | null>(null);
+  const [isLoadingEditedPad, setIsLoadingEditedPad] = useState(false);
+  const [defaultPadVolumeDraft, setDefaultPadVolumeDraft] = useState<number | null>(
+    null,
+  );
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [loading, setLoading] = useState(true);
   const [audioOutputCapabilities] = useState(() => getAudioOutputCapabilities());
@@ -82,6 +97,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
   const [isRequestingAudioPermission, setIsRequestingAudioPermission] =
     useState(false);
   const [audioOutputError, setAudioOutputError] = useState<string | null>(null);
+  const padCacheRef = useRef<Map<string, SoundboardPad>>(new Map());
 
   useEffect(() => {
     let cancelled = false;
@@ -113,7 +129,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
         return;
       }
 
-      const loadedPads = await repositoryInstance.listPads(nextActiveBoardId);
+      const loadedPads = await repositoryInstance.listPadSummaries(nextActiveBoardId);
 
       if (cancelled) {
         return;
@@ -178,24 +194,110 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     isSettingsDialogOpen,
   ]);
 
+  useEffect(() => {
+    if (editorState?.mode !== "edit") {
+      setEditedPad(null);
+      setIsLoadingEditedPad(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadEditedPad = async () => {
+      setIsLoadingEditedPad(true);
+
+      const cachedPad = padCacheRef.current.get(editorState.padId);
+
+      if (cachedPad) {
+        if (!cancelled) {
+          setEditedPad(cachedPad);
+          setIsLoadingEditedPad(false);
+        }
+
+        return;
+      }
+
+      const loadedPad = await repositoryInstance.getPad(editorState.padId);
+
+      if (cancelled) {
+        return;
+      }
+
+      if (loadedPad) {
+        padCacheRef.current.set(loadedPad.id, loadedPad);
+      }
+
+      setEditedPad(loadedPad);
+      setIsLoadingEditedPad(false);
+    };
+
+    void loadEditedPad();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editorState, repositoryInstance]);
+
+  useEffect(() => {
+    setDefaultPadVolumeDraft(settings?.defaultPadVolume ?? null);
+  }, [settings?.defaultPadVolume]);
+
+  useEffect(() => {
+    if (
+      settings === null ||
+      defaultPadVolumeDraft === null ||
+      defaultPadVolumeDraft === settings.defaultPadVolume
+    ) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void updateSettings({
+        defaultPadVolume: defaultPadVolumeDraft,
+      });
+    }, DEFAULT_PAD_VOLUME_SAVE_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [defaultPadVolumeDraft, settings]);
+
   const activeBoard =
     boards.find((board) => board.id === activeBoardId) ?? boards[0] ?? null;
   const activeBoardIsEditing =
     activeBoard !== null && boardEditorState?.boardId === activeBoard.id;
-  const editedPad =
-    editorState?.mode === "edit"
-      ? pads.find((pad) => pad.id === editorState.padId) ?? null
-      : null;
+  const editedPadId =
+    editorState?.mode === "edit" ? editorState.padId : null;
   const selectedManagePadId =
     isManagingPads && editorState?.mode === "edit" ? editorState.padId : null;
-  const editedPadIndex = editedPad
-    ? pads.findIndex((pad) => pad.id === editedPad.id)
+  const editedPadIndex = editedPadId
+    ? pads.findIndex((pad) => pad.id === editedPadId)
     : -1;
+  const effectiveDefaultPadVolume =
+    defaultPadVolumeDraft ?? settings?.defaultPadVolume ?? 100;
 
   const resetPadEditor = () => {
     setCreateEditorVersion((current) => current + 1);
+    setEditedPad(null);
+    setIsLoadingEditedPad(false);
     setHasUnsavedChanges(false);
     setEditorState(null);
+  };
+
+  const getPad = async (padId: string) => {
+    const cachedPad = padCacheRef.current.get(padId);
+
+    if (cachedPad) {
+      return cachedPad;
+    }
+
+    const loadedPad = await repositoryInstance.getPad(padId);
+
+    if (loadedPad) {
+      padCacheRef.current.set(loadedPad.id, loadedPad);
+    }
+
+    return loadedPad;
   };
 
   const canDiscardPadChanges = () =>
@@ -233,7 +335,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     resetPadEditor();
   };
 
-  const selectPadForManagement = (pad: SoundboardPad) => {
+  const selectPadForManagement = (pad: SoundboardPadSummary) => {
     if (
       editorState?.mode === "edit" &&
       editorState.padId === pad.id
@@ -264,7 +366,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     await updateSettings({
       activeBoardId: boardId,
     });
-    const nextPads = await repositoryInstance.listPads(boardId);
+    const nextPads = await repositoryInstance.listPadSummaries(boardId);
 
     setPads(nextPads);
   };
@@ -293,7 +395,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
   };
 
   const refreshPads = async (boardId: string) => {
-    const nextPads = await repositoryInstance.listPads(boardId);
+    const nextPads = await repositoryInstance.listPadSummaries(boardId);
 
     setPads(nextPads);
     return nextPads;
@@ -317,22 +419,46 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
         ? editedPad.order
         : Math.max(0, ...pads.map((pad) => pad.order)) + 1;
 
-    const savedPad = await repositoryInstance.savePad({
-      id: value.id,
-      boardId: activeBoardId,
-      label: normalizePadName(value.label),
-      color: value.color,
-      order: nextOrder,
-      audioBlob: value.audioBlob,
-      audioName: value.audioName,
-      mimeType: value.mimeType,
-      volumeOverride: value.volumeOverride,
-    });
+    const normalizedLabel = normalizePadName(value.label);
+    const hasReplacedAudio =
+      !editedPad ||
+      value.audioBlob !== editedPad.audioBlob ||
+      value.audioName !== editedPad.audioName ||
+      value.mimeType !== editedPad.mimeType;
+    const savedPad = value.id
+      ? await repositoryInstance.savePad({
+          id: value.id,
+          boardId: activeBoardId,
+          label: normalizedLabel,
+          color: value.color,
+          order: nextOrder,
+          ...(hasReplacedAudio
+            ? {
+                audioBlob: value.audioBlob,
+                audioName: value.audioName,
+                mimeType: value.mimeType,
+              }
+            : {}),
+          volumeOverride: value.volumeOverride,
+        })
+      : await repositoryInstance.savePad({
+          boardId: activeBoardId,
+          label: normalizedLabel,
+          color: value.color,
+          order: nextOrder,
+          audioBlob: value.audioBlob,
+          audioName: value.audioName,
+          mimeType: value.mimeType,
+          volumeOverride: value.volumeOverride,
+        });
+
+    padCacheRef.current.set(savedPad.id, savedPad);
 
     await refreshPads(activeBoardId);
     setHasUnsavedChanges(false);
 
     if (isManagingPads && value.id) {
+      setEditedPad(savedPad);
       setEditorState({ mode: "edit", padId: savedPad.id });
       return;
     }
@@ -347,6 +473,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     }
 
     await repositoryInstance.deletePad(editedPad.id);
+    padCacheRef.current.delete(editedPad.id);
     await refreshPads(activeBoardId);
     resetPadEditor();
   };
@@ -368,9 +495,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
       label: editedPad.label,
       color: editedPad.color,
       order: targetPad.order,
-      audioBlob: editedPad.audioBlob,
-      audioName: editedPad.audioName,
-      mimeType: editedPad.mimeType,
+      volumeOverride: editedPad.volumeOverride,
     });
     await repositoryInstance.savePad({
       id: targetPad.id,
@@ -378,9 +503,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
       label: targetPad.label,
       color: targetPad.color,
       order: editedPad.order,
-      audioBlob: targetPad.audioBlob,
-      audioName: targetPad.audioName,
-      mimeType: targetPad.mimeType,
+      volumeOverride: targetPad.volumeOverride,
     });
 
     await refreshPads(activeBoardId);
@@ -442,13 +565,17 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
   };
 
   const handleBoardDelete = async (boardId: string) => {
-    const boardPads = await repositoryInstance.listPads(boardId);
+    const boardPads = await repositoryInstance.listPadSummaries(boardId);
 
     if (
       boardPads.length > 0 &&
       !window.confirm(DELETE_BOARD_MESSAGE)
     ) {
       return;
+    }
+
+    for (const boardPad of boardPads) {
+      padCacheRef.current.delete(boardPad.id);
     }
 
     await repositoryInstance.deleteBoard(boardId);
@@ -462,7 +589,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     const activeBoardChanged = nextActiveBoardId !== activeBoardId;
     const nextPads =
       activeBoardChanged && nextActiveBoardId
-        ? await repositoryInstance.listPads(nextActiveBoardId)
+        ? await repositoryInstance.listPadSummaries(nextActiveBoardId)
         : [];
 
     setBoards(nextBoards);
@@ -493,10 +620,8 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     playerInstance.setAllowConcurrentPlayback(value);
   };
 
-  const handleDefaultPadVolumeChange = async (value: number) => {
-    await updateSettings({
-      defaultPadVolume: value,
-    });
+  const handleDefaultPadVolumeChange = (value: number) => {
+    setDefaultPadVolumeDraft(value);
   };
 
   const handleShowStopAllButtonChange = async (value: boolean) => {
@@ -573,10 +698,16 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
     });
   };
 
-  const handlePlay = async (pad: SoundboardPad) => {
-    await playerInstance.play(pad.audioBlob, {
+  const handlePlay = async (pad: SoundboardPadSummary) => {
+    const loadedPad = await getPad(pad.id);
+
+    if (!loadedPad) {
+      return;
+    }
+
+    await playerInstance.play(loadedPad.audioBlob, {
       outputDeviceId: settings?.preferredOutputDeviceId ?? null,
-      volume: pad.volumeOverride ?? settings?.defaultPadVolume ?? 100,
+      volume: loadedPad.volumeOverride ?? effectiveDefaultPadVolume,
     });
   };
 
@@ -785,7 +916,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
             }
             settings={{
               allowConcurrentPlayback: settings?.allowConcurrentPlayback ?? true,
-              defaultPadVolume: settings?.defaultPadVolume ?? 100,
+              defaultPadVolume: effectiveDefaultPadVolume,
               preferredOutputDeviceId:
                 settings?.preferredOutputDeviceId ?? null,
               preferredOutputDeviceLabel:
@@ -817,6 +948,34 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
                   </p>
                 </div>
               </aside>
+            ) : editorState?.mode === "edit" && isLoadingEditedPad ? (
+              <aside className="rounded-[28px] border border-[var(--color-line)] bg-[rgba(255,255,255,0.56)] p-5">
+                <div className="space-y-3">
+                  <p className="font-[family-name:var(--font-mono)] text-[0.72rem] uppercase tracking-[0.28em] text-[var(--color-muted)]">
+                    Inspector
+                  </p>
+                  <h3 className="text-2xl font-semibold tracking-[-0.04em]">
+                    Loading Sound Pad
+                  </h3>
+                  <p className="text-sm leading-6 text-[var(--color-muted)]">
+                    Fetching the selected sound from local storage.
+                  </p>
+                </div>
+              </aside>
+            ) : editorState?.mode === "edit" && !editedPad ? (
+              <aside className="rounded-[28px] border border-[var(--color-line)] bg-[rgba(255,255,255,0.56)] p-5">
+                <div className="space-y-3">
+                  <p className="font-[family-name:var(--font-mono)] text-[0.72rem] uppercase tracking-[0.28em] text-[var(--color-muted)]">
+                    Inspector
+                  </p>
+                  <h3 className="text-2xl font-semibold tracking-[-0.04em]">
+                    Sound Pad Unavailable
+                  </h3>
+                  <p className="text-sm leading-6 text-[var(--color-muted)]">
+                    The selected sound could not be loaded from local storage.
+                  </p>
+                </div>
+              </aside>
             ) : (
               <PadEditor
                 key={
@@ -826,7 +985,7 @@ export function SoundboardApp({ repository, player }: SoundboardAppProps) {
                 }
                 canMoveDown={editedPadIndex >= 0 && editedPadIndex < pads.length - 1}
                 canMoveUp={editedPadIndex > 0}
-                defaultPadVolume={settings?.defaultPadVolume ?? 100}
+                defaultPadVolume={effectiveDefaultPadVolume}
                 mode={editorState?.mode === "edit" ? "edit" : "create"}
                 onDelete={() => void handleDeletePad()}
                 onDirtyChange={setHasUnsavedChanges}

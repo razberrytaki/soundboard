@@ -1,12 +1,12 @@
-import type { SoundboardPad } from "@/lib/soundboard/types";
+import type { SoundboardPadSummary } from "@/lib/soundboard/types";
 
 import { PadCard } from "@/components/soundboard/pad-card";
 
 type PadGridProps = {
   isManaging: boolean;
-  pads: SoundboardPad[];
-  onPlay(pad: SoundboardPad): void;
-  onSelect(pad: SoundboardPad): void;
+  pads: SoundboardPadSummary[];
+  onPlay(pad: SoundboardPadSummary): void;
+  onSelect(pad: SoundboardPadSummary): void;
   selectedPadId: string | null;
 };
 

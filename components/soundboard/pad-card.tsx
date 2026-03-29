@@ -1,11 +1,11 @@
-import type { SoundboardPad } from "@/lib/soundboard/types";
+import type { SoundboardPadSummary } from "@/lib/soundboard/types";
 
 type PadCardProps = {
-  pad: SoundboardPad;
+  pad: SoundboardPadSummary;
   isManaging: boolean;
   isSelected: boolean;
-  onPlay(pad: SoundboardPad): void;
-  onSelect(pad: SoundboardPad): void;
+  onPlay(pad: SoundboardPadSummary): void;
+  onSelect(pad: SoundboardPadSummary): void;
 };
 
 export function PadCard({

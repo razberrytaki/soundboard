@@ -64,8 +64,10 @@ async function setPadVolume(
 ) {
   await enterManagePads(user);
   await selectPadForManagement(user, "Airhorn");
-  await user.click(screen.getByRole("checkbox", { name: /use default volume/i }));
-  fireEvent.change(screen.getByRole("slider", { name: /pad volume/i }), {
+  await user.click(
+    await screen.findByRole("checkbox", { name: /use default volume/i }),
+  );
+  fireEvent.change(await screen.findByRole("slider", { name: /pad volume/i }), {
     target: { value: volume },
   });
   await user.click(screen.getByRole("button", { name: /save pad/i }));
@@ -93,8 +95,12 @@ describe("SoundboardApp persistence regressions", () => {
 
     await enterManagePads(user);
     await selectPadForManagement(user, "Airhorn");
-    expect(screen.getByRole("checkbox", { name: /use default volume/i })).not.toBeChecked();
-    expect(screen.getByRole("slider", { name: /pad volume/i })).toHaveValue("35");
+    expect(
+      await screen.findByRole("checkbox", { name: /use default volume/i }),
+    ).not.toBeChecked();
+    expect(
+      await screen.findByRole("slider", { name: /pad volume/i }),
+    ).toHaveValue("35");
 
     await user.click(screen.getByRole("button", { name: /save pad/i }));
     await user.click(screen.getByRole("button", { name: /^airhorn$/i }));

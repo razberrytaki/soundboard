@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +7,7 @@ import { SoundboardApp } from "@/components/soundboard/soundboard-app";
 import type {
   SoundboardBoard,
   SoundboardPad,
+  SoundboardPadSummary,
   SoundboardRepository,
   SoundboardSettings,
 } from "@/lib/soundboard/types";
@@ -57,6 +58,14 @@ function createRepositoryFixture({
   const mutablePads = Object.fromEntries(
     Object.entries(padsByBoardId).map(([boardId, pads]) => [boardId, [...pads]]),
   ) as Record<string, SoundboardPad[]>;
+
+  const toPadSummary = (pad: SoundboardPad): SoundboardPadSummary => {
+    const { audioBlob, ...summary } = pad;
+
+    void audioBlob;
+
+    return summary;
+  };
 
   const repository = {
     createBoard: vi.fn(async ({ name }: { name: string }) => {
@@ -123,11 +132,39 @@ function createRepositoryFixture({
 
       return currentSettings;
     }),
+    getPad: vi.fn(async (padId: string) => {
+      for (const pads of Object.values(mutablePads)) {
+        const pad = pads.find((entry) => entry.id === padId);
+
+        if (pad) {
+          return { ...pad };
+        }
+      }
+
+      return null;
+    }),
     savePad: vi.fn(async (input) => {
       const existingPads = [...(mutablePads[input.boardId] ?? [])];
       const existingPad = input.id
         ? existingPads.find((pad) => pad.id === input.id)
         : undefined;
+      const nextAudioBlob =
+        "audioBlob" in input && input.audioBlob instanceof Blob
+          ? input.audioBlob
+          : existingPad?.audioBlob;
+      const nextAudioName =
+        "audioName" in input && typeof input.audioName === "string"
+          ? input.audioName
+          : existingPad?.audioName;
+      const nextMimeType =
+        "mimeType" in input && typeof input.mimeType === "string"
+          ? input.mimeType
+          : existingPad?.mimeType;
+
+      if (!nextAudioBlob || !nextAudioName || !nextMimeType) {
+        throw new Error("Audio file is required when creating a pad.");
+      }
+
       const now = new Date().toISOString();
       const nextPad: SoundboardPad = {
         id: input.id ?? `pad-${padCounter++}`,
@@ -135,9 +172,9 @@ function createRepositoryFixture({
         label: input.label,
         color: input.color,
         order: input.order,
-        audioBlob: input.audioBlob,
-        audioName: input.audioName,
-        mimeType: input.mimeType,
+        audioBlob: nextAudioBlob,
+        audioName: nextAudioName,
+        mimeType: nextMimeType,
         volumeOverride:
           input.volumeOverride === undefined
             ? existingPad?.volumeOverride ?? null
@@ -155,6 +192,11 @@ function createRepositoryFixture({
     listPads: vi.fn(async (boardId: string) => [
       ...(mutablePads[boardId] ?? []),
     ].sort((left, right) => left.order - right.order)),
+    listPadSummaries: vi.fn(async (boardId: string) => [
+      ...(mutablePads[boardId] ?? []),
+    ]
+      .sort((left, right) => left.order - right.order)
+      .map((pad) => toPadSummary(pad))),
     deletePad: vi.fn(async (padId: string) => {
       for (const [boardId, pads] of Object.entries(mutablePads)) {
         mutablePads[boardId] = pads.filter((pad) => pad.id !== padId);
@@ -249,8 +291,7 @@ describe("SoundboardApp", () => {
     });
   });
 
-  it("saves a default pad volume change from the settings dialog", async () => {
-    const user = userEvent.setup();
+  it("coalesces default pad volume changes before persisting them", async () => {
     const repository = createRepositoryFixture({
       boards: [
         {
@@ -278,14 +319,29 @@ describe("SoundboardApp", () => {
 
     render(<SoundboardApp repository={repository} player={player} />);
 
-    await user.click(await screen.findByRole("button", { name: /settings/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /settings/i }));
+    vi.useFakeTimers();
     fireEvent.change(screen.getByRole("slider", { name: /default pad volume/i }), {
       target: { value: "35" },
     });
-
-    await waitFor(() => {
-      expect(repository.updateSettings).toHaveBeenCalledWith({ defaultPadVolume: 35 });
+    fireEvent.change(screen.getByRole("slider", { name: /default pad volume/i }), {
+      target: { value: "42" },
     });
+
+    expect(screen.getByText("42%")).toBeInTheDocument();
+    expect(repository.updateSettings).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(249);
+    });
+    expect(repository.updateSettings).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    expect(repository.updateSettings).toHaveBeenCalledTimes(1);
+    expect(repository.updateSettings).toHaveBeenCalledWith({ defaultPadVolume: 42 });
   });
 
   it("toggles allow concurrent playback from the settings dialog", async () => {
