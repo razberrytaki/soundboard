@@ -39,7 +39,7 @@ The app uses a client-centric architecture on top of Next.js App Router.
 - React client components handle board management, pad editing, and playback interaction.
 - IndexedDB stores persistent application data in the browser.
 - A small local audio player module wraps browser-native `HTMLAudioElement` playback.
-- Cloudflare Workers and OpenNext are used for deployment.
+- The retained deployment configuration targets Cloudflare Workers through OpenNext.
 
 There are no API routes or backend services in the current implementation.
 
@@ -165,15 +165,16 @@ Audio output routing is progressive enhancement only. The runtime prefers the br
 
 ## Deployment Notes
 
-This repository is deployed with Cloudflare Workers using OpenNext.
+The public Cloudflare Workers service was withdrawn on 2026-10-25. The repository and deployment configuration are retained for local development and self-hosting; see [Public Deployment Status](../README.md#public-deployment-status).
 
 Important deployment assumptions:
 
 - `wrangler.jsonc` should remain fork-friendly and not include project-specific private configuration by default
 - project-specific routes and custom domains should be configured per deployment environment
-- the production workflow expects `main` to be the deployment branch
+- production builds must remain disabled and preview branch builds off until the repository owner explicitly decides to reactivate the service
+- `wrangler.jsonc` still contains `workers_dev: true` and `preview_urls: true`; deploying can re-enable public URLs
 
-Typical Cloudflare build setup:
+Self-hosting reference commands (not instructions to restore the withdrawn service):
 
 - Build command: `pnpm exec opennextjs-cloudflare build`
 - Deploy command: `pnpm exec opennextjs-cloudflare deploy`
