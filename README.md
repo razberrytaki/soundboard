@@ -2,7 +2,17 @@
 
 Soundboard is a browser-based soundboard for triggering short audio effects from a grid of pads, similar to a lightweight web streamer deck. It is designed to run without a backend: boards, pad settings, and uploaded audio files are stored locally in the browser and restored when the same user revisits the app on the same device and browser.
 
-The project is currently built with Next.js and deployed to Cloudflare Workers through OpenNext. The primary audience for this repository is developers who want to understand, run, extend, or self-host the app.
+The project is built with Next.js and retains its Cloudflare Workers deployment configuration through OpenNext. The primary audience for this repository is developers who want to understand, run, extend, or self-host the app.
+
+## Public Deployment Status
+
+The public Cloudflare-hosted service was withdrawn on 2026-10-25. The repository, source code, Worker, and deployment history are retained; the Worker was not deleted.
+
+- Production builds are disabled in Cloudflare Workers Builds, and preview branch builds are off.
+- The Worker's `workers.dev` and preview URLs are disabled, and its custom domain connection has been removed.
+- These are the verified Cloudflare settings; they do not establish worldwide DNS propagation.
+
+No browser-local data was intentionally deleted. Existing IndexedDB data remains subject to browser storage retention and is tied to its original origin; a local or self-hosted copy does not automatically have access to it.
 
 ## Features
 
@@ -88,7 +98,7 @@ What they do:
 - `pnpm test:coverage`: run the Vitest suite with V8 coverage reporting
 - `pnpm lint`: run ESLint
 - `pnpm preview`: build with OpenNext and start a Cloudflare-style preview
-- `pnpm deploy`: build with OpenNext and deploy through Wrangler
+- `pnpm deploy`: build with OpenNext and deploy through Wrangler; publishes the app, so read the self-hosting precautions below before use
 
 ## Verification
 
@@ -124,11 +134,13 @@ Audio output device routing is treated as a progressive enhancement feature. The
 
 If you find a browser-specific issue, open a bug report and include the exact browser version and operating system.
 
-## Deployment
+## Self-Hosting Reference
 
-This repository is configured for Cloudflare Workers using OpenNext.
+The retained configuration targets Cloudflare Workers using OpenNext. These instructions are for a separate self-hosted deployment, not for restoring the withdrawn public service.
 
-Typical deployment setup:
+**Keep production builds disabled and preview branch builds off until the repository owner explicitly decides to reactivate the service.** `wrangler.jsonc` still contains `workers_dev: true` and `preview_urls: true`; running deployment commands can re-enable public URLs. This documentation change does not change deployment configuration.
+
+Example setup for your own deployment:
 
 1. Connect the repository to Cloudflare Workers Builds.
 2. Use `main` as the production branch.
@@ -148,7 +160,7 @@ Important:
 
 - Review `wrangler.jsonc` before deploying your own fork.
 - Worker names, routes, and domain-related settings are project-specific and should be updated for your environment.
-- `main` is intended to be the only branch that auto-deploys in the current workflow.
+- Do not enable automatic builds or run deployment commands against the withdrawn service without an explicit reactivation decision.
 
 ## Project Structure
 
@@ -219,7 +231,7 @@ Recommended flow:
 2. Make changes on a dedicated feature branch
 3. Run the local verification commands
 4. Merge into `main` only after verification passes
-5. Push `main` to trigger the production Cloudflare deployment flow
+5. Keep Cloudflare automatic builds paused; repository updates do not authorize republishing the public service
 
 Please keep changes focused and update tests or documentation when behavior changes.
 
