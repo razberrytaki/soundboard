@@ -19,7 +19,7 @@ This project is intentionally backend-free. Most feature work happens in the App
 4. Open a PR against `main`
 5. Merge only after review and green CI
 
-The production deployment flow is tied to `main`, so feature branches should stay unmerged until verification is complete.
+The public Cloudflare service was withdrawn on 2026-10-25; see [Public Deployment Status](README.md#public-deployment-status). Keep production builds disabled and preview branch builds off until the repository owner explicitly decides to reactivate it. Repository updates do not authorize redeployment. The retained `wrangler.jsonc` still enables `workers_dev` and `preview_urls`, so deployment commands can restore public URLs.
 
 ## Local Verification
 
